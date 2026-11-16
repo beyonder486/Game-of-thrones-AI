@@ -32,11 +32,11 @@ A house wins immediately at the end of a round when either condition is met:
 Every AI house executes an integrated decision pipeline combining graph search, fuzzy inference, adversarial tree search, and Monte Carlo simulation:
 
 1. **Breadth-First Search (BFS) — [`algorithms/bfs.py`](algorithms/bfs.py)**
-   - Computes `get_reachable(map, start, n_steps=3)` to map all territories reachable within $N$ marches from a house's seat.
+   - Computes `get_reachable(map, start, n_steps=3)` to map all territories reachable within `n_steps` marches from a house's seat.
 2. **Depth-First Search (DFS) — [`algorithms/dfs.py`](algorithms/dfs.py)**
    - Computes `get_expansion_paths(map, start, depth_limit=3)` to scout deep multi-step expansion corridors across Westeros.
 3. **Greedy Search — [`algorithms/greedy.py`](algorithms/greedy.py)**
-   - Evaluates immediate targets via $\arg\max(\text{resource\_value} - \text{defense\_bonus})$ and serves as the fast **rollout policy** inside MCTS simulations (replacing random rollouts).
+   - Evaluates immediate targets via `argmax(resource_value - defense_bonus)` and serves as the fast **rollout policy** inside MCTS simulations (replacing random rollouts).
 4. **A\* Pathfinding — [`algorithms/astar.py`](algorithms/astar.py)**
    - Routes troop movement (`get_path(map, start, goal)`) from a house's nearest controlled hold toward its chosen target, minimizing cumulative `defense_bonus` along the path.
 5. **Mamdani Fuzzy Logic — [`algorithms/fuzzy_diplomacy.py`](algorithms/fuzzy_diplomacy.py)**
@@ -45,8 +45,10 @@ Every AI house executes an integrated decision pipeline combining graph search, 
    - **Context B:** Evaluates an incoming alliance proposal in the house's inbox against the sender's strength and trust.
 6. **Monte Carlo Tree Search (MCTS) — [`algorithms/mcts.py`](algorithms/mcts.py)**
    - Makes all final diplomatic decisions using UCT biased by Fuzzy Logic scores:
-     $$\text{UCT} = \frac{Q}{N} + C \sqrt{\frac{\ln N_{\text{parent}}}{N}} + \text{fuzzy\_score}[\text{action}]$$
-   - Simulates multi-turn greedy rollouts (including probabilistic alliance breakdown $p_{\text{break}} = 1 - \text{trust}/100$) to choose between `propose_alliance`, `betray`, or `solo` (Context A), and `accept` or `reject` (Context B).
+     ```text
+     UCT = (Q / N) + UCT_C * sqrt(ln(N_parent) / N) + fuzzy_score[action]
+     ```
+   - Simulates multi-turn greedy rollouts (including probabilistic alliance breakdown `p_break = 1 - trust / 100`) to choose between `propose_alliance`, `betray`, or `solo` (Context A), and `accept` or `reject` (Context B).
 7. **Minimax with Alpha-Beta Pruning — [`algorithms/minimax.py`](algorithms/minimax.py)**
    - Searches up to depth `3` to select the optimal tactical attack target (or `None` to hold fortifications).
    - **Decomposed Mode:** When no enemy coalition exists, evaluates 1v1 sub-trees against each opponent weighted by their relative military strength.
@@ -86,9 +88,9 @@ Each round processes surviving houses in order (**Stark → Lannister → Targar
 ## Combat & Diplomacy Rules
 
 - **Combat Resolution ([`combat.py`](combat.py)):**
-  - $\text{Attack Power} = \text{attacker.armies} \times \text{Uniform}(0.85, 1.15)$
-  - $\text{Defense Power} = \text{defender\_armies} \times \text{territory.defense\_bonus} \times \text{Uniform}(0.85, 1.15)$
-  - If $\text{Attack Power} > \text{Defense Power}$, the attacker captures the territory (`50%` of defender count lost by attacker; `80%` lost by defender). If a house loses its final territory, the conqueror seizes its remaining gold treasury.
+  - `Attack Power = attacker.armies * Uniform(0.85, 1.15)`
+  - `Defense Power = defender_armies * territory.defense_bonus * Uniform(0.85, 1.15)`
+  - If `Attack Power > Defense Power`, the attacker captures the territory (`50%` of defender count lost by attacker; `80%` lost by defender). If a house loses its final territory, the conqueror seizes its remaining gold treasury.
   - Otherwise, the attack is repelled (`60%` of attacker armies lost; `20%` of defender armies lost).
 - **No Resource Sharing:** Allied houses never pool gold, armies, or territories—every captured hold belongs strictly to the house that conquered it.
 
