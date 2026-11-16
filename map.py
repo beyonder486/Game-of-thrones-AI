@@ -56,19 +56,19 @@ LANDMARKS: dict[tuple[int, int], tuple[str, str, int, str | None]] = {
 TERRITORY_SPECS: list[tuple[str, int, int, str, int, int, int, str | None, bool]] = [
     # (name, col, row, feature, resource_value, defense_bonus, armies, owner, is_iron_throne)
     # `armies` is the neutral garrison; house-owned seats are defended by the house's army pool.
-    ("THE WALL", 6, 1, "snow", 2, 4, 3, None, False),
-    ("CASTLE BLACK", 9, 1, "castle", 3, 2, 2, None, False),
-    ("WINTERFELL", 4, 2, "castle", 8, 3, 0, "STARK", False),
-    ("MOAT CAILIN", 7, 3, "ruins", 3, 3, 3, None, False),
+    ("THE WALL", 6, 1, "snow", 4, 3, 3, None, False),
+    ("CASTLE BLACK", 9, 1, "castle", 5, 2, 2, None, False),
+    ("WINTERFELL", 4, 2, "castle", 9, 3, 0, "STARK", False),
+    ("MOAT CAILIN", 7, 3, "ruins", 5, 2, 3, None, False),
     ("PYKE", 1, 2, "harbor", 4, 2, 3, None, False),
     ("RIVERRUN", 4, 4, "castle", 5, 2, 4, None, False),
-    ("THE EYRIE", 11, 2, "castle", 4, 4, 3, None, False),
+    ("THE EYRIE", 11, 2, "castle", 6, 3, 3, None, False),
     ("HARRENHAL", 7, 5, "ruins", 4, 1, 4, None, False),
     ("KING'S LANDING", 10, 4, "royal", 15, 2, 14, None, True),
     ("DRAGONSTONE", 12, 6, "castle", 6, 4, 0, "TARGARYEN", False),
-    ("STORM'S END", 10, 6, "castle", 5, 3, 4, None, False),
-    ("HIGHGARDEN", 5, 6, "farm", 7, 2, 4, None, False),
-    ("CASTERLY ROCK", 2, 6, "mine", 10, 2, 0, "LANNISTER", False),
+    ("STORM'S END", 10, 6, "castle", 5, 2, 4, None, False),
+    ("HIGHGARDEN", 5, 6, "farm", 6, 2, 4, None, False),
+    ("CASTERLY ROCK", 2, 6, "mine", 9, 2, 0, "LANNISTER", False),
     ("LANNISPORT", 1, 4, "harbor", 5, 2, 3, None, False),
     ("DORNE", 8, 7, "farm", 5, 2, 4, None, False),
 ]

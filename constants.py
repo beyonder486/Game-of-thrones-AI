@@ -53,9 +53,9 @@ ALLY_BONUS = 5
 
 # Starting values per house
 STARTING_VALUES: dict[str, dict[str, int]] = {
-    "STARK": {"gold": 50, "armies": 10},
-    "LANNISTER": {"gold": 70, "armies": 15},
-    "TARGARYEN": {"gold": 40, "armies": 12},
+    "STARK": {"gold": 60, "armies": 14},
+    "LANNISTER": {"gold": 65, "armies": 14},
+    "TARGARYEN": {"gold": 45, "armies": 12},
 }
 STARTING_TERRITORIES: dict[str, str] = {
     "STARK": "WINTERFELL",
