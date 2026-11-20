@@ -18,7 +18,10 @@ import os
 import pygame
 
 from constants import (
+    DRAGONSTONE_COORD,
     GOLD,
+    GRID_COLS,
+    GRID_ROWS,
     HEIGHT,
     HEX_H,
     HEX_R,
@@ -159,48 +162,56 @@ def hex_points(center: tuple[float, float], radius: float = HEX_R) -> list[tuple
 
 
 def center_of(col: int, row: int) -> tuple[float, float]:
-    grid_width = 14 * X_STEP + 2 * HEX_R
-    grid_height = 7 * Y_STEP + Y_STEP / 2 + 2 * HEX_R
+    grid_width = (GRID_COLS - 1) * X_STEP + 2 * HEX_R
+    grid_height = (GRID_ROWS - 1) * Y_STEP + Y_STEP / 2 + 2 * HEX_R
     left = MAP_RECT.centerx - grid_width / 2
-    top = MAP_RECT.centery - grid_height / 2 + 8
+    top = MAP_RECT.centery - grid_height / 2 + 6
     return left + HEX_R + col * X_STEP, top + HEX_R + row * Y_STEP + (col % 2) * Y_STEP / 2
 
 
 # 2.5D Landmark Building Specifications: (sprite_path, (width, height), y_offset)
 LANDMARK_SPRITE_DEFS: dict[str, tuple[str, tuple[int, int], int]] = {
-    "THE WALL": ("assets/buildings/the_wall.png", (92, 100), 4),
-    "CASTLE BLACK": ("assets/buildings/winterfell.png", (74, 72), 4),
-    "WINTERFELL": ("assets/buildings/winterfell.png", (88, 85), 5),
-    "MOAT CAILIN": ("assets/buildings/ruins.png", (74, 72), 4),
-    "PYKE": ("assets/buildings/casterly_rock.png", (76, 72), 4),
-    "RIVERRUN": ("assets/buildings/highgarden.png", (80, 78), 5),
-    "THE EYRIE": ("assets/buildings/eyrie.png", (74, 98), 4),
-    "HARRENHAL": ("assets/buildings/ruins.png", (78, 76), 4),
-    "KING'S LANDING": ("assets/buildings/kings_landing.png", (96, 94), 6),
-    "DRAGONSTONE": ("assets/buildings/dragonstone.png", (86, 85), 5),
-    "STORM'S END": ("assets/buildings/casterly_rock.png", (80, 76), 4),
-    "HIGHGARDEN": ("assets/buildings/highgarden.png", (86, 84), 5),
-    "CASTERLY ROCK": ("assets/buildings/casterly_rock.png", (88, 84), 5),
-    "LANNISPORT": ("assets/buildings/casterly_rock.png", (72, 68), 4),
-    "DORNE": ("assets/buildings/sunspear.png", (86, 86), 5),
+    "THE WALL": ("assets/buildings/the_wall.png", (150, 160), 18),
+    "CASTLE BLACK": ("assets/buildings/winterfell.png", (110, 106), 14),
+    "DREADFORT": ("assets/buildings/ruins.png", (114, 112), 14),
+    "PYKE": ("assets/buildings/casterly_rock.png", (114, 108), 14),
+    "WINTERFELL": ("assets/buildings/winterfell.png", (152, 146), 20),
+    "MOAT CAILIN": ("assets/buildings/ruins.png", (110, 108), 14),
+    "WHITE HARBOR": ("assets/buildings/casterly_rock.png", (114, 110), 14),
+    "THE EYRIE": ("assets/buildings/eyrie.png", (124, 156), 18),
+    "LANNISPORT": ("assets/buildings/casterly_rock.png", (108, 102), 14),
+    "RIVERRUN": ("assets/buildings/highgarden.png", (118, 114), 15),
+    "THE TWINS": ("assets/buildings/winterfell.png", (114, 110), 14),
+    "KING'S LANDING": ("assets/buildings/kings_landing.png", (166, 162), 22),
+    "HARRENHAL": ("assets/buildings/ruins.png", (116, 114), 15),
+    "CASTERLY ROCK": ("assets/buildings/casterly_rock.png", (150, 142), 20),
+    "OLDTOWN": ("assets/buildings/highgarden.png", (130, 126), 14),
+    "HIGHGARDEN": ("assets/buildings/highgarden.png", (142, 138), 18),
+    "DORNE": ("assets/buildings/sunspear.png", (146, 146), 16),
+    "STORM'S END": ("assets/buildings/casterly_rock.png", (120, 114), 15),
+    "DRAGONSTONE": ("assets/buildings/dragonstone.png", (150, 146), 20),
 }
 
 PLAQUE_OFFSETS: dict[str, tuple[int, int]] = {
-    "THE WALL": (0, 24),
-    "CASTLE BLACK": (0, 22),
-    "WINTERFELL": (0, 24),
-    "MOAT CAILIN": (0, 22),
-    "PYKE": (0, 22),
-    "RIVERRUN": (0, 23),
-    "THE EYRIE": (0, 23),
-    "HARRENHAL": (0, 23),
-    "KING'S LANDING": (0, 25),
-    "STORM'S END": (-8, 24),
-    "DRAGONSTONE": (8, 24),
-    "CASTERLY ROCK": (-4, 24),
-    "LANNISPORT": (0, 22),
-    "HIGHGARDEN": (4, 24),
-    "DORNE": (0, 24),
+    "THE WALL": (0, 36),
+    "CASTLE BLACK": (0, 32),
+    "DREADFORT": (0, 32),
+    "PYKE": (0, 32),
+    "WINTERFELL": (0, 38),
+    "MOAT CAILIN": (0, 32),
+    "WHITE HARBOR": (0, 32),
+    "THE EYRIE": (0, 36),
+    "LANNISPORT": (0, 32),
+    "RIVERRUN": (0, 33),
+    "THE TWINS": (0, 32),
+    "KING'S LANDING": (0, 40),
+    "HARRENHAL": (0, 33),
+    "CASTERLY ROCK": (0, 38),
+    "OLDTOWN": (0, 18),
+    "HIGHGARDEN": (0, 36),
+    "DORNE": (0, 26),
+    "STORM'S END": (0, 33),
+    "DRAGONSTONE": (0, 38),
 }
 
 _SEA_BASE_CACHE: dict[tuple[int, int], pygame.Surface] = {}
@@ -406,42 +417,58 @@ def draw_isometric_landmark(
     house: str | None,
     fonts: dict[str, pygame.font.Font],
     mode: str = "all",
+    shake_x: int = 0,
 ) -> None:
     """Render a grounded 2.5D isometric landmark fortress. mode: all | body | plaque."""
-    cx, cy = round(center[0]), round(center[1])
+    cx, cy = round(center[0]) + shake_x, round(center[1])
     spec = LANDMARK_SPRITE_DEFS.get(name)
     if mode == "plaque":
         _draw_plaque(surface, cx, cy, name, armies, house, fonts)
         return
 
-    # 1. Grounded Hexagonal Foundation Pad & Heraldic Rim flush with the hex tile
-    pad_pts = hex_points((cx, cy + 2), HEX_R - 5)
-    pad_surf = pygame.Surface((HEX_R * 2 + 12, HEX_R * 2 + 12), pygame.SRCALPHA)
-    pcx, pcy = HEX_R + 6, HEX_R + 6
-    local_pad = [(px - cx + pcx, py - cy + pcy) for px, py in pad_pts]
-    if name == "KING'S LANDING":
-        pygame.draw.polygon(pad_surf, (60, 48, 24, 145), local_pad)
-        pygame.draw.polygon(pad_surf, (*GOLD, 220), local_pad, 2)
-    elif house:
-        hcol = HOUSE_COLORS[house]
-        pygame.draw.polygon(pad_surf, (24, 30, 32, 130), local_pad)
-        pygame.draw.polygon(pad_surf, (*hcol, 210), local_pad, 2)
+    # 1. Grounded Isometric Contact Shadow & Footprint Rim anchored directly to castle base
+    if spec is not None:
+        sw_full, sh_full = spec[1]
+        y_off = spec[2]
+        bottom_y = cy + 18 + y_off
     else:
-        pygame.draw.polygon(pad_surf, (32, 34, 30, 110), local_pad)
-        pygame.draw.polygon(pad_surf, (130, 126, 110, 140), local_pad, 1)
+        sw_full, sh_full, bottom_y = 84, 84, cy + 20
 
-    # Isometric diamond contact shadow directly matching castle base footprint
-    sw, sh = (spec[1][0] // 2 + 2, 18) if spec is not None else (36, 16)
-    diamond_shadow = [
-        (pcx, pcy - sh + 4),
-        (pcx + sw, pcy + 4),
-        (pcx, pcy + sh + 6),
-        (pcx - sw, pcy + 4),
+    foot_w = int(sw_full * 0.50)
+    foot_h = max(20, int(sh_full * 0.24))
+    foot_cy = bottom_y - foot_h + 2
+    pad_w = foot_w * 2 + 28
+    pad_h = foot_h * 2 + 24
+    pad_surf = pygame.Surface((pad_w, pad_h), pygame.SRCALPHA)
+    pcx, pcy = pad_w // 2, pad_h // 2
+
+    # Outer soft ambient-occlusion shadow hugging the ground beneath the fortress walls
+    outer_shadow = [
+        (pcx, pcy - foot_h - 4),
+        (pcx + foot_w + 8, pcy + 2),
+        (pcx, pcy + foot_h + 6),
+        (pcx - foot_w - 8, pcy + 2),
     ]
-    pygame.draw.polygon(pad_surf, (8, 14, 18, 155), diamond_shadow)
-    surface.blit(pad_surf, (cx - pcx, cy - pcy))
+    pygame.draw.polygon(pad_surf, (6, 12, 16, 82), outer_shadow)
 
-    # 2. Building Sprite (anchored so its isometric diamond base sits on (cx, cy))
+    # Tight dark contact shadow directly under the castle's diamond foundation
+    inner_shadow = [
+        (pcx, pcy - foot_h + 2),
+        (pcx + foot_w + 1, pcy + 2),
+        (pcx, pcy + foot_h + 2),
+        (pcx - foot_w - 1, pcy + 2),
+    ]
+    pygame.draw.polygon(pad_surf, (6, 10, 14, 155), inner_shadow)
+
+    # Subtle grounded heraldic base trim (King's Landing gold or ruling house accent)
+    if name == "KING'S LANDING":
+        pygame.draw.polygon(pad_surf, (*GOLD, 185), outer_shadow, 2)
+    elif house:
+        pygame.draw.polygon(pad_surf, (*HOUSE_COLORS[house], 165), outer_shadow, 2)
+
+    surface.blit(pad_surf, (cx - pcx, foot_cy - pcy))
+
+    # 2. Building Sprite (bottom corner planted flush onto bottom_y)
     if spec is not None:
         sprite_path, size, y_off = spec
         sprite = get_sprite(sprite_path, size)
@@ -452,13 +479,13 @@ def draw_isometric_landmark(
 
             # Steady Royal Crown crest above King's Landing (The Iron Throne)
             if name == "KING'S LANDING":
-                crown_icon = get_sprite("assets/ui/crown.png", (24, 24))
+                crown_icon = get_sprite("assets/ui/crown.png", (26, 26))
                 if crown_icon:
-                    surface.blit(crown_icon, (cx - 12, by - 14))
+                    surface.blit(crown_icon, (cx - 13, by - 14))
 
             # Chimney smoke for major seats
             if name in ("KING'S LANDING", "WINTERFELL", "DRAGONSTONE"):
-                draw_smoke_wisps(surface, (cx - 10, by + 16), seed=len(name))
+                draw_smoke_wisps(surface, (cx - 10, by + 18), seed=len(name))
         else:
             _draw_fallback_castle(surface, cx, cy, house)
     else:
@@ -555,6 +582,522 @@ def draw_knight_squad(
     pygame.draw.rect(surface, (20, 26, 30), pennant, 1, border_radius=4)
     num_txt = fonts["tiny"].render(str(armies), True, (15, 20, 25))
     surface.blit(num_txt, (pennant.centerx - num_txt.get_width() // 2, pennant.centery - num_txt.get_height() // 2))
+
+
+_DRAGON_FRAME_CACHE: dict[tuple[str, str, tuple[int, int]], list[pygame.Surface]] = {}
+_DRAGON_SHEETS: dict[str, str] = {
+    "right": "assets/ui/reddragonfly.png",
+    "down": "assets/ui/reddragonfly2.png",
+    "left": "assets/ui/reddragonfly3.png",
+    "up": "assets/ui/reddragonfly4.png",
+}
+
+
+def _dragon_direction(dx: float, dy: float) -> str:
+    if abs(dx) >= abs(dy):
+        return "right" if dx >= 0 else "left"
+    return "down" if dy >= 0 else "up"
+
+
+DRAGON_PATROL_SIZE: tuple[int, int] = (102, 82)   # Ambient circling dragon (width, height)
+DRAGON_BATTLE_SIZE: tuple[int, int] = (128, 102)  # Attacking dragon in battle (width, height)
+
+
+def _get_dragon_frames(
+    direction: str,
+    kind: str = "fly",
+    size: tuple[int, int] = (72, 58),
+) -> list[pygame.Surface]:
+    """Slice and cache 4x4 directional red dragon sprite-sheet frames."""
+    key = (direction, kind, size)
+    if key in _DRAGON_FRAME_CACHE:
+        return _DRAGON_FRAME_CACHE[key]
+    path = _DRAGON_SHEETS.get(direction, _DRAGON_SHEETS["right"])
+    sheet = get_sprite(path)
+    if sheet is None:
+        _DRAGON_FRAME_CACHE[key] = []
+        return []
+    cw, ch = sheet.get_width() // 4, sheet.get_height() // 4
+    if kind == "attack":
+        cells = [(1, 2), (2, 2), (3, 2), (0, 3), (1, 3), (2, 3), (3, 3)]
+    else:
+        cells = [(c, r) for r in (0, 1) for c in range(4)]
+    frames: list[pygame.Surface] = []
+    for c, r in cells:
+        sub = sheet.subsurface(pygame.Rect(c * cw, r * ch, cw, ch))
+        frames.append(pygame.transform.smoothscale(sub, size))
+    _DRAGON_FRAME_CACHE[key] = frames
+    return frames
+
+
+def _draw_patrol_dragon(
+    surface: pygame.Surface,
+    game_map: Map | None,
+    houses: list[House] | None,
+    animations: list[dict[str, object]] | None,
+) -> None:
+    """Render an ambient flying Targaryen dragon circling Dragonstone/capital."""
+    if animations and any(
+        a.get("type") == "march" and a.get("house") == "TARGARYEN" for a in animations
+    ):
+        return
+    if houses:
+        targ = next((h for h in houses if h.name == "TARGARYEN"), None)
+        if targ is not None and targ.is_eliminated():
+            return
+        anchor = targ.territories[0] if targ and targ.territories else None
+    else:
+        anchor = None
+    if anchor is None and game_map is not None:
+        owned = game_map.get_owned_by("TARGARYEN")
+        anchor = owned[0] if owned else None
+    col, row = (anchor.col, anchor.row) if anchor is not None else DRAGONSTONE_COORD
+    cx, cy = center_of(col, row)
+
+    theta = pygame.time.get_ticks() * 0.00055
+    rx, ry = 36.0, 20.0
+    px = cx + math.cos(theta) * rx
+    py = cy + math.sin(theta) * ry
+    dx = -math.sin(theta) * rx
+    dy = math.cos(theta) * ry
+    direction = _dragon_direction(dx, dy)
+    frames = _get_dragon_frames(direction, "fly", DRAGON_PATROL_SIZE)
+    if not frames:
+        return
+    frame = frames[(pygame.time.get_ticks() // 135) % len(frames)]
+
+    shadow = pygame.Surface((42, 16), pygame.SRCALPHA)
+    pygame.draw.ellipse(shadow, (8, 12, 16, 105), (0, 0, 42, 16))
+    surface.blit(shadow, (round(px - 21), round(py + 6)))
+    surface.blit(frame, (round(px - frame.get_width() / 2), round(py - 28 - frame.get_height() / 2)))
+
+
+def _draw_sailing_ships(surface: pygame.Surface, rect: pygame.Rect) -> None:
+    """Render animated medieval warships patrolling the Sunset, Narrow, and Summer Seas."""
+    ticks = pygame.time.get_ticks() * 0.00022
+    routes = [
+        # (x1, y1, x2, y2, sail_color, phase) — open ocean lanes outside 21x8 coastline
+        (rect.x + 56, rect.y + 180, rect.x + 112, rect.y + 580, LANNISTER, 0.0),
+        (rect.x + 140, rect.bottom - 108, rect.x + 360, rect.bottom - 62, GOLD, 1.8),
+        (rect.right - 122, rect.y + 165, rect.right - 56, rect.y + 520, TARGARYEN, 3.1),
+        (rect.right - 340, rect.bottom - 72, rect.right - 120, rect.bottom - 140, STARK, 4.7),
+    ]
+    for x1, y1, x2, y2, sail_col, phase in routes:
+        cycle = (ticks + phase) % 2.0
+        going = cycle < 1.0
+        u = cycle if going else (2.0 - cycle)
+        ease = u * u * (3.0 - 2.0 * u)
+        px = x1 + (x2 - x1) * ease
+        py = y1 + (y2 - y1) * ease
+        dx = (x2 - x1) if going else (x1 - x2)
+        dy = (y2 - y1) if going else (y1 - y2)
+        ln = math.hypot(dx, dy) or 1.0
+        ux, uy = dx / ln, dy / ln
+        bob = math.sin(pygame.time.get_ticks() * 0.004 + phase) * 2.0
+
+        # Trailing foam wake
+        wake = pygame.Surface((96, 96), pygame.SRCALPHA)
+        for i in range(1, 5):
+            wx = 48 - ux * i * 7
+            wy = 48 - uy * i * 7
+            alpha = max(18, 120 - i * 24)
+            pygame.draw.circle(wake, (210, 238, 245, alpha), (round(wx), round(wy)), max(1, 5 - i))
+        surface.blit(wake, (round(px - 48), round(py - 48 + bob)))
+
+        # Wooden galley hull + mast + billowing sail
+        sx, sy = round(px), round(py + bob)
+        flip = -1 if dx < 0 else 1
+        hull = [(sx - 13 * flip, sy + 2), (sx + 15 * flip, sy + 2), (sx + 10 * flip, sy + 7), (sx - 9 * flip, sy + 7)]
+        pygame.draw.polygon(surface, (82, 56, 36), hull)
+        pygame.draw.polygon(surface, (132, 96, 62), hull, 1)
+        pygame.draw.line(surface, (66, 46, 28), (sx, sy + 2), (sx, sy - 16), 2)
+        sail = [
+            (sx, sy - 15),
+            (sx + 12 * flip, sy - 9),
+            (sx + 10 * flip, sy - 1),
+            (sx, sy - 2),
+        ]
+        pygame.draw.polygon(surface, IVORY, sail)
+        pygame.draw.polygon(surface, sail_col, [(sx, sy - 11), (sx + 11 * flip, sy - 8), (sx + 10 * flip, sy - 5), (sx, sy - 6)])
+        pygame.draw.polygon(surface, (42, 34, 28), sail, 1)
+
+
+_WARRIOR_FRAME_CACHE: dict[tuple[str, tuple[int, int]], list[pygame.Surface]] = {}
+_WARRIOR_SHEETS: dict[str, str] = {
+    "run": "assets/ui/Medieval Warrior Pack/Run.png",
+    "attack1": "assets/ui/Medieval Warrior Pack/Attack1.png",
+    "attack2": "assets/ui/Medieval Warrior Pack/Attack2.png",
+    "idle": "assets/ui/Medieval Warrior Pack/Idle.png",
+    "hit": "assets/ui/Medieval Warrior Pack/Hit.png",
+    "death": "assets/ui/Medieval Warrior Pack/Death.png",
+}
+
+
+def _get_warrior_frames(
+    kind: str = "run",
+    size: tuple[int, int] = (54, 54),
+) -> list[pygame.Surface]:
+    """Slice and cache Medieval Warrior Pack horizontal sprite-sheet frames (184x137 cells)."""
+    key = (kind, size)
+    if key in _WARRIOR_FRAME_CACHE:
+        return _WARRIOR_FRAME_CACHE[key]
+    path = _WARRIOR_SHEETS.get(kind, _WARRIOR_SHEETS["run"])
+    sheet = get_sprite(path)
+    if sheet is None:
+        _WARRIOR_FRAME_CACHE[key] = []
+        return []
+    cell_w = 184
+    cell_h = sheet.get_height()
+    count = max(1, sheet.get_width() // cell_w)
+    # Consistent crop inside each 184x137 cell so feet stay pixel-locked across all actions
+    crop_x, crop_y = 38, 22
+    crop_w, crop_h = min(108, cell_w - crop_x), min(108, cell_h - crop_y)
+    frames: list[pygame.Surface] = []
+    for i in range(count):
+        sub = sheet.subsurface(pygame.Rect(i * cell_w + crop_x, crop_y, crop_w, crop_h))
+        frames.append(pygame.transform.smoothscale(sub, size))
+    _WARRIOR_FRAME_CACHE[key] = frames
+    return frames
+
+
+def _draw_road_patrols(
+    surface: pygame.Surface,
+    game_map: Map | None,
+    houses: list[House] | None,
+) -> None:
+    """Render animated running Medieval Warriors patrolling between owned holds."""
+    if game_map is None or not houses:
+        return
+    ticks_ms = pygame.time.get_ticks()
+    ticks = ticks_ms * 0.00032
+    run_frames = _get_warrior_frames("run", (48, 48))
+    fallback = get_sprite("assets/units/knights.png", (34, 38)) if not run_frames else None
+    for idx, house in enumerate(houses):
+        if house.is_eliminated() or not house.territories:
+            continue
+        t_a = house.territories[0]
+        owned_nb = next((nb for nb in t_a.neighbors if nb.owner == house.name), None)
+        ax, ay = center_of(t_a.col, t_a.row)
+        if owned_nb is not None:
+            bx, by = center_of(owned_nb.col, owned_nb.row)
+            p1x, p1y = ax + (bx - ax) * 0.28, ay + (by - ay) * 0.28
+            p2x, p2y = ax + (bx - ax) * 0.72, ay + (by - ay) * 0.72
+        else:
+            p1x, p1y = ax - 28, ay + 18
+            p2x, p2y = ax + 28, ay + 18
+
+        cycle = (ticks + idx * 0.67) % 2.0
+        going = cycle < 1.0
+        u = cycle if going else (2.0 - cycle)
+        px = p1x + (p2x - p1x) * u
+        py = p1y + (p2y - p1y) * u
+        dx = (p2x - p1x) if going else (p1x - p2x)
+        accent = HOUSE_COLORS.get(house.name, GOLD)
+
+        # Grounded contact shadow + subtle house team ring beneath feet
+        foot_surf = pygame.Surface((32, 14), pygame.SRCALPHA)
+        pygame.draw.ellipse(foot_surf, (8, 12, 16, 125), (3, 3, 26, 9))
+        pygame.draw.ellipse(foot_surf, (*accent, 195), (4, 3, 24, 8), 2)
+        surface.blit(foot_surf, (round(px - 16), round(py - 5)))
+
+        if run_frames:
+            frame = run_frames[(ticks_ms // 85 + idx * 2) % len(run_frames)]
+            spr = pygame.transform.flip(frame, True, False) if dx < 0 else frame
+            surface.blit(spr, (round(px - spr.get_width() / 2), round(py - spr.get_height() + 4)))
+        elif fallback is not None:
+            spr = pygame.transform.flip(fallback, True, False) if dx < 0 else fallback
+            surface.blit(spr, (round(px - 17), round(py - 32)))
+
+
+def _draw_drifting_clouds(surface: pygame.Surface, rect: pygame.Rect) -> None:
+    """Render soft translucent cloud shadows gliding slowly west-to-east across Westeros."""
+    ticks = pygame.time.get_ticks() * 0.012
+    cloud_specs = [
+        (0.0, 0.18, 220, 74, 24),
+        (430.0, 0.38, 260, 86, 22),
+        (920.0, 0.62, 240, 78, 20),
+        (1380.0, 0.28, 210, 68, 22),
+        (1680.0, 0.76, 250, 82, 18),
+    ]
+    span = rect.width + 320
+    for offset_x, y_frac, w, h, alpha in cloud_specs:
+        cx = rect.x - 160 + ((ticks + offset_x) % span)
+        cy = rect.y + rect.height * y_frac + math.sin((ticks + offset_x) * 0.005) * 10
+        cloud = pygame.Surface((w, h), pygame.SRCALPHA)
+        pygame.draw.ellipse(cloud, (6, 14, 22, alpha), (0, 14, w, h - 14))
+        pygame.draw.ellipse(cloud, (220, 236, 245, alpha // 2), (w // 5, 4, int(w * 0.6), int(h * 0.62)))
+        surface.blit(cloud, (round(cx - w / 2), round(cy - h / 2)))
+
+
+def _draw_ambient_weather(surface: pygame.Surface, rect: pygame.Rect) -> None:
+    """Render falling snow in the North and glowing volcanic embers near Dragonstone."""
+    ticks = pygame.time.get_ticks()
+    # Northern snowdrift over The Wall / Winterfell / Castle Black / Dreadfort
+    nw_x, nw_y = center_of(1, 0)
+    ne_x, _ = center_of(17, 0)
+    snow_w = max(240, int(ne_x - nw_x + 120))
+    snow_h = 230
+    for i in range(44):
+        sx = nw_x - 40 + ((i * 73 + ticks * 0.025) % snow_w)
+        sy = nw_y - 30 + ((i * 41 + ticks * 0.032) % snow_h)
+        sx += math.sin(ticks * 0.003 + i) * 6
+        rad = 1 if i % 3 else 2
+        pygame.draw.circle(surface, (240, 248, 255), (round(sx), round(sy)), rad)
+
+    # Volcanic embers rising softly around Dragonstone
+    dx, dy = center_of(*DRAGONSTONE_COORD)
+    for i in range(10):
+        t = ((ticks * 0.028) + i * 19) % 70
+        ex = dx + math.sin(ticks * 0.004 + i * 1.7) * 26 + (i - 5) * 5
+        ey = dy + 10 - t * 0.95
+        col = (255, 195, 76) if i % 2 == 0 else (238, 92, 42)
+        pygame.draw.circle(surface, col, (round(ex), round(ey)), 2 if t < 35 else 1)
+
+
+def _draw_warrior_unit(
+    surface: pygame.Surface,
+    x: float,
+    y: float,
+    frames: list[pygame.Surface],
+    frame_idx: int,
+    flip_left: bool,
+    ring_color: tuple[int, int, int],
+    show_ring: bool = True,
+) -> None:
+    """Draw a single grounded Medieval Warrior with contact shadow and house ring."""
+    foot = pygame.Surface((36, 14), pygame.SRCALPHA)
+    pygame.draw.ellipse(foot, (8, 12, 16, 130), (3, 3, 30, 9))
+    if show_ring:
+        pygame.draw.ellipse(foot, (*ring_color, 215), (4, 3, 28, 8), 2)
+    surface.blit(foot, (round(x - 18), round(y - 4)))
+    if frames:
+        spr = frames[frame_idx % len(frames)]
+        if flip_left:
+            spr = pygame.transform.flip(spr, True, False)
+        surface.blit(spr, (round(x - spr.get_width() / 2), round(y - spr.get_height() + 4)))
+
+
+def _draw_animations(
+    surface: pygame.Surface,
+    fonts: dict[str, pygame.font.Font],
+    animations: list[dict[str, object]] | None,
+) -> None:
+    """Render castle-vs-castle warrior battles, flying dragons, ravens, & +Gold popups."""
+    if not animations:
+        return
+    for anim in animations:
+        kind = anim.get("type")
+        elapsed = float(anim.get("elapsed", 0.0))
+        duration = max(0.05, float(anim.get("duration", 1.0)))
+        t = max(0.0, min(1.0, elapsed / duration))
+
+        if kind == "march":
+            house = str(anim.get("house", "STARK"))
+            defender_name = str(anim.get("defender", "NEUTRAL"))
+            accent = HOUSE_COLORS.get(house, GOLD)
+            def_color = HOUSE_COLORS.get(defender_name, (205, 193, 159))
+            ax, ay = center_of(*anim["from_coord"])  # type: ignore[misc]
+            bx, by = center_of(*anim["to_coord"])  # type: ignore[misc]
+            captured = bool(anim.get("captured", False))
+            dx, dy = bx - ax, by - ay
+            dist = math.hypot(dx, dy) or 1.0
+            ux, uy = dx / dist, dy / dist
+
+            # Battlefront midpoint slightly closer to the besieged castle
+            mid_x = ax + dx * 0.56
+            mid_y = ay + dy * 0.56
+            att_meet_x, att_meet_y = mid_x - ux * 18, mid_y - uy * 12
+            def_meet_x, def_meet_y = mid_x + ux * 18, mid_y + uy * 12
+            att_flip = dx < 0
+            def_flip = not att_flip
+
+            run_frames = _get_warrior_frames("run", (62, 62))
+            idle_frames = _get_warrior_frames("idle", (62, 62))
+            atk1_frames = _get_warrior_frames("attack1", (66, 66))
+            atk2_frames = _get_warrior_frames("attack2", (66, 66))
+            hit_frames = _get_warrior_frames("hit", (62, 62))
+            death_frames = _get_warrior_frames("death", (62, 62))
+
+            att_slots = ((-10, -14, 0), (0, 0, 2), (-8, 14, 4))
+            def_slots = ((10, -14, 1), (0, 0, 3), (8, 14, 5))
+
+            # Subtle pulsing battlefield glow between the two castles
+            if 0.25 <= t <= 0.90:
+                bf_surf = pygame.Surface((130, 68), pygame.SRCALPHA)
+                bf_alpha = int(55 + 35 * math.sin(elapsed * 8.0))
+                pygame.draw.ellipse(bf_surf, (*GOLD, bf_alpha), (6, 8, 118, 52))
+                pygame.draw.ellipse(bf_surf, (*accent, bf_alpha + 40), (6, 8, 118, 52), 2)
+                surface.blit(bf_surf, (round(mid_x - 65), round(mid_y - 30)))
+
+            if t < 0.34:
+                # Phase 1: Attacker charges out AND defending garrison sallies out to meet them
+                mt = t / 0.34
+                ease = mt * mt * (3.0 - 2.0 * mt)
+                apx = ax + (att_meet_x - ax) * ease
+                apy = ay + (att_meet_y - ay) * ease
+                dpx = bx + (def_meet_x - bx) * ease
+                dpy = by + (def_meet_y - by) * ease
+
+                # Defending castle's warriors running out to meet the invasion
+                for fx, fy, foff in def_slots:
+                    _draw_warrior_unit(
+                        surface, dpx + fx, dpy + fy, run_frames, int(elapsed * 11) + foff, def_flip, def_color
+                    )
+
+                # Attacking house (Targaryen dragon OR Stark/Lannister warrior squad)
+                if house == "TARGARYEN":
+                    frames = _get_dragon_frames(_dragon_direction(dx, dy), "fly", DRAGON_BATTLE_SIZE)
+                    if frames:
+                        frame = frames[int(elapsed * 8) % len(frames)]
+                        shadow = pygame.Surface((48, 18), pygame.SRCALPHA)
+                        pygame.draw.ellipse(shadow, (8, 12, 16, 120), (0, 0, 48, 18))
+                        surface.blit(shadow, (round(apx - 24), round(apy + 6)))
+                        arc = math.sin(mt * math.pi) * 14
+                        surface.blit(frame, (round(apx - frame.get_width() / 2), round(apy - 28 - arc - frame.get_height() / 2)))
+                else:
+                    for fx, fy, foff in att_slots:
+                        _draw_warrior_unit(
+                            surface, apx + fx, apy + fy, run_frames, int(elapsed * 11) + foff, att_flip, accent
+                        )
+
+            elif t < 0.78:
+                # Phase 2: Extended face-to-face sword fight / dragonfire clash!
+                ct = (t - 0.34) / 0.44
+                clash_cycle = int(elapsed * 3.5)
+
+                # Defenders fighting back (alternating sword swings & taking hits)
+                for idx_w, (fx, fy, foff) in enumerate(def_slots):
+                    taking_hit = ((clash_cycle + idx_w) % 3 == 0)
+                    if taking_hit and hit_frames:
+                        fset = hit_frames
+                        fidx = int(elapsed * 9 + foff) % len(fset)
+                    else:
+                        fset = atk1_frames if (idx_w % 2 == 0) else atk2_frames
+                        fidx = int(elapsed * 9 + foff) % max(1, len(fset))
+                    lunge = (-4 if def_flip else 4) * math.sin(elapsed * 12 + idx_w)
+                    _draw_warrior_unit(
+                        surface, def_meet_x + fx + lunge, def_meet_y + fy, fset, fidx, def_flip, def_color
+                    )
+
+                if house == "TARGARYEN":
+                    frames = _get_dragon_frames(_dragon_direction(dx, dy), "attack", DRAGON_BATTLE_SIZE)
+                    if frames:
+                        frame = frames[int(elapsed * 7) % len(frames)]
+                        shadow = pygame.Surface((48, 18), pygame.SRCALPHA)
+                        pygame.draw.ellipse(shadow, (8, 12, 16, 120), (0, 0, 48, 18))
+                        surface.blit(shadow, (round(att_meet_x - 24), round(att_meet_y + 8)))
+                        surface.blit(frame, (round(att_meet_x - frame.get_width() / 2), round(att_meet_y - 26 - frame.get_height() / 2)))
+                    # Streaming dragonfire & embers onto defending warriors
+                    for i in range(10):
+                        p = (elapsed * 2.4 + i * 0.1) % 1.0
+                        ex = round(att_meet_x + (def_meet_x - att_meet_x) * p + math.sin(i * 2.1 + elapsed * 9) * 8)
+                        ey = round(att_meet_y - 18 + (def_meet_y - att_meet_y + 12) * p + math.cos(i * 1.7 + elapsed * 9) * 6)
+                        col = (255, 205, 76) if i % 2 == 0 else (242, 86, 34)
+                        pygame.draw.circle(surface, col, (ex, ey), max(2, round(6 * (1.0 - p * 0.5))))
+                else:
+                    # Attacking warriors trading sword swings & hits face-to-face
+                    for idx_w, (fx, fy, foff) in enumerate(att_slots):
+                        taking_hit = ((clash_cycle + idx_w + 1) % 3 == 0)
+                        if taking_hit and hit_frames:
+                            fset = hit_frames
+                            fidx = int(elapsed * 9 + foff) % len(fset)
+                        else:
+                            fset = atk1_frames if (idx_w % 2 == 0) else atk2_frames
+                            fidx = int(elapsed * 9 + foff) % max(1, len(fset))
+                        lunge = (-4 if att_flip else 4) * math.sin(elapsed * 12 + idx_w + 1.5)
+                        _draw_warrior_unit(
+                            surface, att_meet_x + fx + lunge, att_meet_y + fy, fset, fidx, att_flip, accent
+                        )
+
+                # Live steel clash sparks flying between the two squads
+                for i in range(7):
+                    sp_p = (elapsed * 3.2 + i * 0.17) % 1.0
+                    ang = i * (math.tau / 7) + elapsed * 3.0
+                    rad = 4 + sp_p * 22
+                    sx = round(mid_x + math.cos(ang) * rad)
+                    sy = round(mid_y - 12 + math.sin(ang) * rad * 0.6)
+                    pygame.draw.circle(surface, GOLD if i % 2 == 0 else IVORY, (sx, sy), max(1, round(3.5 * (1.0 - sp_p))))
+
+                # Battle progress label above the clash
+                clash_lbl = "CLASHING!"
+                write(surface, clash_lbl, (round(mid_x - fonts["micro"].size(clash_lbl)[0] / 2), round(mid_y - 54)), fonts["micro"], GOLD)
+
+            else:
+                # Phase 3: Defeated warriors fall (Death.png), victors hold the field
+                it = (t - 0.78) / 0.22
+                death_idx = min(max(0, len(death_frames) - 1), int(it * len(death_frames)))
+
+                if captured:
+                    # Defenders collapse; attackers stand victorious
+                    for fx, fy, _ in def_slots:
+                        _draw_warrior_unit(
+                            surface, def_meet_x + fx, def_meet_y + fy, death_frames, death_idx, def_flip, def_color, show_ring=False
+                        )
+                    if house == "TARGARYEN":
+                        frames = _get_dragon_frames(_dragon_direction(dx, dy), "fly", DRAGON_BATTLE_SIZE)
+                        if frames:
+                            frame = frames[int(elapsed * 8) % len(frames)]
+                            surface.blit(frame, (round(bx - frame.get_width() / 2), round(by - 32 - frame.get_height() / 2)))
+                    else:
+                        for fx, fy, foff in att_slots:
+                            _draw_warrior_unit(
+                                surface, att_meet_x + fx, att_meet_y + fy, idle_frames, int(elapsed * 8) + foff, att_flip, accent
+                            )
+                else:
+                    # Attackers collapse (or dragon retreats); defenders stand triumphant
+                    if house == "TARGARYEN":
+                        frames = _get_dragon_frames(_dragon_direction(-dx, -dy), "fly", DRAGON_BATTLE_SIZE)
+                        if frames:
+                            rx = att_meet_x - ux * 26 * it
+                            ry = att_meet_y - uy * 26 * it
+                            frame = frames[int(elapsed * 8) % len(frames)]
+                            surface.blit(frame, (round(rx - frame.get_width() / 2), round(ry - 28 - frame.get_height() / 2)))
+                    else:
+                        for fx, fy, _ in att_slots:
+                            _draw_warrior_unit(
+                                surface, att_meet_x + fx, att_meet_y + fy, death_frames, death_idx, att_flip, accent, show_ring=False
+                            )
+                    for fx, fy, foff in def_slots:
+                        _draw_warrior_unit(
+                            surface, def_meet_x + fx, def_meet_y + fy, idle_frames, int(elapsed * 8) + foff, def_flip, def_color
+                        )
+
+                # Expanding outcome shockwave ring at the target castle
+                ring_r = round(16 + it * 46)
+                ring_surf = pygame.Surface((ring_r * 2 + 6, ring_r * 2 + 6), pygame.SRCALPHA)
+                alpha = int(220 * (1.0 - it))
+                pygame.draw.ellipse(
+                    ring_surf,
+                    (*(GOLD if captured else accent), alpha),
+                    (3, ring_r // 2, ring_r * 2, ring_r),
+                    3,
+                )
+                surface.blit(ring_surf, (round(bx - ring_r - 3), round(by - ring_r // 2)))
+
+                # Floating outcome popup
+                label = "CAPTURED!" if captured else "REPELLED"
+                col = GOLD if captured else (235, 115, 95)
+                write(surface, label, (round(bx - fonts["small"].size(label)[0] / 2), round(by - 52 - it * 18)), fonts["small"], col)
+
+        elif kind == "raven":
+            ax, ay = center_of(*anim["from_coord"])  # type: ignore[misc]
+            bx, by = center_of(*anim["to_coord"])  # type: ignore[misc]
+            ease = t * t * (3.0 - 2.0 * t)
+            px = ax + (bx - ax) * ease
+            py = ay + (by - ay) * ease - math.sin(t * math.pi) * 34
+            raven = get_sprite("assets/ui/raven.png", (28, 28))
+            if raven:
+                spr = pygame.transform.flip(raven, True, False) if (bx - ax) < 0 else raven
+                surface.blit(spr, (round(px - 14), round(py - 14)))
+
+        elif kind == "gold":
+            cx, cy = center_of(*anim["coord"])  # type: ignore[misc]
+            amount = int(anim.get("amount", 0))
+            fy = round(cy - 26 - t * 28)
+            coin = get_sprite("assets/ui/gold_coin.png", (16, 16))
+            if coin:
+                surface.blit(coin, (round(cx - 24), fy))
+            write(surface, f"+{amount}G", (round(cx - 5), fy), fonts["small"], GOLD)
 
 
 def draw_crest(
@@ -708,62 +1251,62 @@ def draw_top_bar(
     turn: int = 1,
     mode: str = "AI vs AI",
 ) -> None:
-    """Render the polished medieval HUD header bar with supersampled icons."""
-    bar = pygame.Rect(22, 14, WIDTH - 44, 72)
+    """Render the sleek medieval HUD header bar above the full-screen map."""
+    bar = pygame.Rect(14, 10, WIDTH - 28, 60)
     draw_glass_panel(surface, bar, (20, 30, 36), GOLD, 10)
 
     # Title & Realm Year
-    crown_icon = get_sprite("assets/ui/crown.png", (34, 34))
+    crown_icon = get_sprite("assets/ui/crown.png", (30, 30))
     if crown_icon:
-        surface.blit(crown_icon, (bar.x + 14, bar.y + 16))
-    write(surface, "GAME OF THRONES", (bar.x + 56, bar.y + 11), fonts["title"], GOLD)
-    write(surface, "AI CONQUEST  ·  AUTUMN, 298 AC", (bar.x + 57, bar.y + 39), fonts["micro"], (185, 198, 185))
+        surface.blit(crown_icon, (bar.x + 14, bar.y + 15))
+    write(surface, "GAME OF THRONES", (bar.x + 52, bar.y + 8), fonts["title"], GOLD)
+    write(surface, "AI CONQUEST  ·  AUTUMN, 298 AC", (bar.x + 53, bar.y + 34), fonts["tiny"], (185, 198, 185))
 
     # Center Status Pills for Great Houses
     house_by_name = {h.name: h for h in houses} if houses else {}
-    coin_icon = get_sprite("assets/ui/gold_coin.png", (20, 20))
-    swords_icon = get_sprite("assets/ui/swords.png", (20, 20))
-    tower_icon = get_sprite("assets/ui/tower.png", (20, 20))
+    coin_icon = get_sprite("assets/ui/gold_coin.png", (18, 18))
+    swords_icon = get_sprite("assets/ui/swords.png", (18, 18))
+    tower_icon = get_sprite("assets/ui/tower.png", (18, 18))
 
-    start_x = bar.x + 368
+    start_x = bar.x + 390
     for idx, h_name in enumerate(("STARK", "LANNISTER", "TARGARYEN")):
         h = house_by_name.get(h_name)
-        gold_val = str(h.gold) if h else "50"
-        army_val = str(h.armies) if h else "10"
+        gold_val = str(h.gold) if h else "60"
+        army_val = str(h.armies) if h else "14"
         hold_val = str(len(h.territories)) if h else "1"
         accent = HOUSE_COLORS[h_name]
 
-        pill_rect = pygame.Rect(start_x + idx * 282, bar.y + 10, 270, 52)
+        pill_rect = pygame.Rect(start_x + idx * 320, bar.y + 7, 304, 46)
         pygame.draw.rect(surface, (18, 27, 33), pill_rect, border_radius=8)
         pygame.draw.rect(surface, mix(accent, GOLD, 0.2), pill_rect, 1, border_radius=8)
         pygame.draw.line(surface, (*mix(accent, (255, 255, 255), 0.3), 75), (pill_rect.x + 8, pill_rect.y + 1), (pill_rect.right - 8, pill_rect.y + 1), 1)
 
-        draw_crest(surface, (pill_rect.x + 26, pill_rect.centery), h_name, 17)
-        write(surface, h_name, (pill_rect.x + 50, pill_rect.y + 6), fonts["small"], accent)
+        draw_crest(surface, (pill_rect.x + 24, pill_rect.centery), h_name, 15)
+        write(surface, h_name, (pill_rect.x + 48, pill_rect.y + 5), fonts["small"], accent)
 
         # Resources line
-        rx = pill_rect.x + 50
-        ry = pill_rect.y + 27
+        rx = pill_rect.x + 48
+        ry = pill_rect.y + 23
         if coin_icon:
             surface.blit(coin_icon, (rx, ry))
-        write(surface, gold_val, (rx + 24, ry + 1), fonts["micro"], GOLD)
+        write(surface, gold_val, (rx + 22, ry + 1), fonts["micro"], GOLD)
 
         if swords_icon:
-            surface.blit(swords_icon, (rx + 74, ry))
-        write(surface, army_val, (rx + 98, ry + 1), fonts["micro"], IVORY)
+            surface.blit(swords_icon, (rx + 80, ry))
+        write(surface, army_val, (rx + 102, ry + 1), fonts["micro"], IVORY)
 
         if tower_icon:
-            surface.blit(tower_icon, (rx + 144, ry))
-        write(surface, hold_val, (rx + 168, ry + 1), fonts["micro"], IVORY)
+            surface.blit(tower_icon, (rx + 158, ry))
+        write(surface, hold_val, (rx + 180, ry + 1), fonts["micro"], IVORY)
 
     # Turn Display at Far Right
     div_x = bar.right - 224
-    pygame.draw.line(surface, (82, 102, 98), (div_x, bar.y + 12), (div_x, bar.bottom - 12), 1)
-    write(surface, "TURN", (div_x + 18, bar.y + 12), fonts["micro"], MUTED)
-    write(surface, f"{turn:02d}", (div_x + 18, bar.y + 27), fonts["turn"], GOLD)
-    write(surface, mode, (div_x + 76, bar.y + 15), fonts["micro"], IVORY)
+    pygame.draw.line(surface, (82, 102, 98), (div_x, bar.y + 10), (div_x, bar.bottom - 10), 1)
+    write(surface, "TURN", (div_x + 18, bar.y + 8), fonts["tiny"], MUTED)
+    write(surface, f"{turn:02d}", (div_x + 18, bar.y + 22), fonts["turn"], GOLD)
+    write(surface, mode, (div_x + 76, bar.y + 11), fonts["micro"], IVORY)
     step_note = "AWAITING VIEWER" if "AI vs AI" in mode else "PLAYER ORDERS"
-    write(surface, step_note, (div_x + 76, bar.y + 36), fonts["tiny"], GOLD if "PLAYER" in step_note else MUTED)
+    write(surface, step_note, (div_x + 76, bar.y + 30), fonts["tiny"], GOLD if "PLAYER" in step_note else MUTED)
 
 
 # ---------------------------------------------------------------------------
@@ -783,8 +1326,25 @@ _DECO_CACHE: dict[str, pygame.Surface] = {}
 _VIGNETTE_CACHE: dict[tuple[int, int], pygame.Surface] = {}
 
 
+_GRASS_ASSET_PATH = "assets/ui/\u2014Pngtree\u2014top down view vibrant grass_23654644.png"
+_SNOW_STYL_PATH = "assets/ui/textures/snow_styl_s502_seamless.png"
+_MOUNTAIN_GROUND_PATH = "assets/ui/Assets/3D_objects/maps/default_Base_Color.jpg"
+
+
+def _tile_seamless(tile_img: object, size: tuple[int, int]) -> object:
+    from PIL import Image
+
+    w, h = size
+    canvas_img = Image.new("RGB", (w, h))
+    tw, th = tile_img.size  # type: ignore[attr-defined]
+    for y in range(0, h, th):
+        for x in range(0, w, tw):
+            canvas_img.paste(tile_img, (x, y))  # type: ignore[arg-type]
+    return canvas_img
+
+
 def _terrain_texture(kind: str, size: tuple[int, int]) -> pygame.Surface:
-    """Procedural multi-octave painted texture for a terrain kind."""
+    """Painted texture for a terrain kind using user grass, snow, and alpine rock assets."""
     key = (kind, size)
     if key in _TEXTURE_CACHE:
         return _TEXTURE_CACHE[key]
@@ -794,6 +1354,77 @@ def _terrain_texture(kind: str, size: tuple[int, int]) -> pygame.Surface:
     from PIL import Image
 
     w, h = size
+    if kind in ("grass", "forest", "marsh") and os.path.exists(_GRASS_ASSET_PATH):
+        try:
+            raw = Image.open(_GRASS_ASSET_PATH).convert("RGBA").convert("RGB")
+            rw, rh = raw.size
+            crop = raw.crop((int(rw * 0.24), int(rh * 0.19), int(rw * 0.76), int(rh * 0.80)))
+            tile = crop.resize((360, 420), Image.Resampling.LANCZOS)
+            tw, th = tile.size
+            block = Image.new("RGB", (tw * 2, th * 2))
+            t_fx = tile.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+            t_fy = tile.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+            t_fxy = t_fx.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+            block.paste(tile, (0, 0))
+            block.paste(t_fx, (tw, 0))
+            block.paste(t_fy, (0, th))
+            block.paste(t_fxy, (tw, th))
+
+            canvas_img = _tile_seamless(block, (w, h))
+            arr = np.asarray(canvas_img, dtype=float)
+            if kind == "grass":
+                arr *= np.array([0.88, 0.92, 0.86])
+            elif kind == "forest":
+                arr *= np.array([0.62, 0.76, 0.64])
+            elif kind == "marsh":
+                arr = arr * np.array([0.68, 0.78, 0.76]) + np.array([10.0, 18.0, 22.0])
+            arr_u8 = np.clip(arr, 0, 255).astype("uint8")
+            rgb = pygame.image.frombuffer(arr_u8.tobytes(), (w, h), "RGB")
+            surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            surf.blit(rgb, (0, 0))
+            _TEXTURE_CACHE[key] = surf
+            return surf
+        except Exception as e:
+            print(f"Warning: failed loading grass texture {_GRASS_ASSET_PATH}: {e}")
+
+    if kind == "snow" and os.path.exists(_SNOW_STYL_PATH):
+        try:
+            tile = Image.open(_SNOW_STYL_PATH).convert("RGB").resize((256, 256), Image.Resampling.LANCZOS)
+            canvas_img = _tile_seamless(tile, (w, h))
+            rgb = pygame.image.frombuffer(np.asarray(canvas_img, dtype="uint8").tobytes(), (w, h), "RGB")
+            surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            surf.blit(rgb, (0, 0))
+            _TEXTURE_CACHE[key] = surf
+            return surf
+        except Exception as e:
+            print(f"Warning: failed loading snow texture {_SNOW_STYL_PATH}: {e}")
+
+    if kind == "mountain" and os.path.exists(_MOUNTAIN_GROUND_PATH):
+        try:
+            raw = Image.open(_MOUNTAIN_GROUND_PATH).convert("RGB")
+            rw, rh = raw.size
+            crop = raw.crop((0, int(rh * 0.58), int(rw * 0.42), rh))
+            tile = crop.resize((256, 256), Image.Resampling.LANCZOS)
+            tw, th = tile.size
+            block = Image.new("RGB", (tw * 2, th * 2))
+            t_fx = tile.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+            t_fy = tile.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+            t_fxy = t_fx.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+            block.paste(tile, (0, 0))
+            block.paste(t_fx, (tw, 0))
+            block.paste(t_fy, (0, th))
+            block.paste(t_fxy, (tw, th))
+            canvas_img = _tile_seamless(block, (w, h))
+            arr = np.asarray(canvas_img, dtype=float) * np.array([0.76, 0.78, 0.80])
+            arr_u8 = np.clip(arr, 0, 255).astype("uint8")
+            rgb = pygame.image.frombuffer(arr_u8.tobytes(), (w, h), "RGB")
+            surf = pygame.Surface((w, h), pygame.SRCALPHA)
+            surf.blit(rgb, (0, 0))
+            _TEXTURE_CACHE[key] = surf
+            return surf
+        except Exception as e:
+            print(f"Warning: failed loading mountain ground texture {_MOUNTAIN_GROUND_PATH}: {e}")
+
     seed = sum(ord(c) for c in kind) * 13
     rng = np.random.default_rng(seed)
     acc = np.zeros((h, w))
@@ -854,9 +1485,9 @@ def _soften(mask: pygame.Surface, factor: int = 6) -> pygame.Surface:
 
 def _land_cells() -> list[tuple[int, int, tuple[float, float]]]:
     cells = []
-    for col in range(15):
-        for row in range(8):
-            if on_land(col, row) or (col, row) == (12, 6):
+    for col in range(GRID_COLS):
+        for row in range(GRID_ROWS):
+            if on_land(col, row) or (col, row) == DRAGONSTONE_COORD:
                 cells.append((col, row, center_of(col, row)))
     return cells
 
@@ -971,11 +1602,80 @@ def get_land_layer(game_map: Map | None) -> pygame.Surface:
     return _LAYER_CACHE["surf"]  # type: ignore[return-value]
 
 
+_TREE_SET_PATH = "assets/ui/Tree Set #1/tree-set.png"
+_TREE_SET_RECTS: tuple[tuple[int, int, int, int, int], ...] = (
+    (11, 14, 106, 114, 46),
+    (145, 5, 100, 123, 50),
+    (287, 32, 80, 96, 40),
+    (409, 48, 69, 80, 34),
+)
+
+
+def _load_tree_sprite(index: int, snowy: bool = False) -> pygame.Surface | None:
+    """Load, scale, optionally frost, and add a grounded shadow to a tree sprite."""
+    if not (0 <= index < len(_TREE_SET_RECTS)) or not os.path.exists(_TREE_SET_PATH):
+        return None
+    try:
+        import numpy as np
+        from PIL import Image
+
+        x, y, w, h, target_h = _TREE_SET_RECTS[index]
+        tw = max(1, round(w * target_h / h))
+        th = target_h
+        with Image.open(_TREE_SET_PATH) as sheet:
+            crop = sheet.convert("RGBA").crop((x, y, x + w, y + h))
+        resized = crop.resize((tw, th), Image.Resampling.LANCZOS)
+
+        if snowy:
+            arr = np.asarray(resized, dtype=float).copy()
+            r, g, b, a = arr[:, :, 0], arr[:, :, 1], arr[:, :, 2], arr[:, :, 3]
+            foliage_mask = (a > 40) & (g >= r)
+            # Cool green foliage toward muted winter blue-green while leaving trunks intact
+            arr[foliage_mask, 0] *= 0.78
+            arr[foliage_mask, 1] *= 0.88
+            arr[foliage_mask, 2] *= 0.96
+            luma = 0.299 * r + 0.587 * g + 0.114 * b
+            ys = np.arange(th)[:, None]
+            highlight_mask = foliage_mask & (luma >= 115) & (ys < int(th * 0.78))
+            arr[highlight_mask, 0] = arr[highlight_mask, 0] * 0.35 + 236.0 * 0.65
+            arr[highlight_mask, 1] = arr[highlight_mask, 1] * 0.35 + 244.0 * 0.65
+            arr[highlight_mask, 2] = arr[highlight_mask, 2] * 0.35 + 250.0 * 0.65
+            arr_u8 = np.clip(arr, 0, 255).astype("uint8")
+            tree_surf = pygame.image.frombuffer(arr_u8.tobytes(), (tw, th), "RGBA")
+        else:
+            tree_surf = pygame.image.frombuffer(resized.tobytes(), (tw, th), "RGBA")
+
+        s = pygame.Surface((tw + 6, th + 5), pygame.SRCALPHA)
+        shadow_w = max(16, int(tw * 0.62))
+        pygame.draw.ellipse(s, (0, 0, 0, 75), (tw // 2 + 3 - shadow_w // 2, th - 3, shadow_w, 7))
+        s.blit(tree_surf, (3, 0))
+        return s
+    except Exception as e:
+        print(f"Warning: failed loading tree sprite {index} from {_TREE_SET_PATH}: {e}")
+        return None
+
+
 def _deco_sprite(kind: str) -> pygame.Surface:
-    """Procedurally painted trees and mountains used as map decorations."""
+    """Tree sprites (tree-set.png), 3D mountain sprites (mountain_*.png), and fallbacks."""
     if kind in _DECO_CACHE:
         return _DECO_CACHE[kind]
-    if kind == "mountain":
+    alias = {"oak": "tree_0", "pine": "tree_1", "snowpine": "snow_1", "mountain": "mountain_0"}.get(kind, kind)
+    if alias.startswith(("tree_", "snow_")):
+        try:
+            idx = int(alias.split("_", 1)[1])
+            loaded = _load_tree_sprite(idx, snowy=alias.startswith("snow_"))
+            if loaded is not None:
+                _DECO_CACHE[kind] = loaded
+                return loaded
+        except ValueError:
+            pass
+    if alias.startswith("mountain_"):
+        loaded = get_sprite(f"assets/tiles/{alias}.png")
+        if loaded is not None:
+            _DECO_CACHE[kind] = loaded
+            return loaded
+
+    if kind == "mountain" or kind.startswith("mountain_"):
         s = pygame.Surface((68, 52), pygame.SRCALPHA)
         pygame.draw.ellipse(s, (0, 0, 0, 65), (6, 40, 56, 10))
         pygame.draw.polygon(s, (92, 94, 92), [(4, 46), (23, 9), (47, 46)])
@@ -984,22 +1684,23 @@ def _deco_sprite(kind: str) -> pygame.Surface:
         pygame.draw.polygon(s, (74, 76, 74), [(47, 18), (64, 46), (50, 46)])
         pygame.draw.polygon(s, (246, 248, 250), [(23, 9), (16, 20), (21, 19), (24, 23), (29, 18), (32, 21)])
         pygame.draw.polygon(s, (240, 244, 248), [(47, 18), (42, 27), (46, 25), (49, 29), (53, 25)])
-    elif kind == "oak":
+    elif kind == "oak" or kind.startswith("tree_"):
         s = pygame.Surface((32, 40), pygame.SRCALPHA)
         pygame.draw.ellipse(s, (0, 0, 0, 75), (4, 31, 24, 7))
         pygame.draw.rect(s, (84, 62, 38), (14, 19, 4, 15))
         for (x, y, r, col) in ((11, 19, 9, (36, 84, 44)), (21, 17, 9, (46, 100, 52)), (16, 11, 10, (64, 126, 64)), (13, 8, 5, (118, 168, 88))):
             pygame.draw.circle(s, col, (x, y), r)
-    elif kind in ("pine", "snowpine"):
+    elif kind in ("pine", "snowpine") or kind.startswith("snow_"):
+        is_snow = kind == "snowpine" or kind.startswith("snow_")
         s = pygame.Surface((28, 42), pygame.SRCALPHA)
         pygame.draw.ellipse(s, (0, 0, 0, 75), (3, 34, 22, 7))
         pygame.draw.rect(s, (70, 52, 34), (12, 29, 4, 9))
-        green = (30, 78, 52) if kind == "pine" else (52, 92, 76)
+        green = (52, 92, 76) if is_snow else (30, 78, 52)
         for i, w in enumerate((22, 17, 12)):
             top = 4 + i * 9
             pygame.draw.polygon(s, green, [(14, top), (14 - w // 2, top + 14), (14 + w // 2, top + 14)])
-            pygame.draw.polygon(s, mix(green, (255, 255, 255), 0.55 if kind == "snowpine" else 0.12), [(14, top), (14 - w // 2, top + 14), (14, top + 12)])
-        if kind == "snowpine":
+            pygame.draw.polygon(s, mix(green, (255, 255, 255), 0.55 if is_snow else 0.12), [(14, top), (14 - w // 2, top + 14), (14, top + 12)])
+        if is_snow:
             pygame.draw.polygon(s, (248, 250, 252), [(14, 4), (10, 12), (18, 12)])
     else:
         s = pygame.Surface((4, 4), pygame.SRCALPHA)
@@ -1012,24 +1713,31 @@ def _decorations_for(col: int, row: int, center: tuple[float, float]) -> list[tu
     cx, cy = center
     seed = col * 31 + row * 17
     out: list[tuple[float, pygame.Surface, tuple[int, int]]] = []
-    offsets = ((-11, -5), (10, -7), (2, 7), (-7, 9), (12, 5))
+    offsets = ((-14, -6), (13, -8), (2, 9), (-9, 11), (15, 6))
     if kind == "forest":
+        forest_choices = ("tree_0", "tree_1", "tree_2", "tree_3")
         for i in range(3):
             ox, oy = offsets[(seed + i) % 5]
-            spr = _deco_sprite("oak" if (seed + i) % 3 else "pine")
-            out.append((cy + oy, spr, (round(cx + ox - spr.get_width() / 2), round(cy + oy - spr.get_height() + 5))))
+            spr = _deco_sprite(forest_choices[(seed + i) % 4])
+            out.append((cy + oy, spr, (round(cx + ox - spr.get_width() / 2), round(cy + oy - spr.get_height() + 4))))
     elif kind == "snow" and (col + row) % 2 == 0:
+        snow_choices = ("snow_1", "snow_2", "snow_3")
         for i in range(2):
             ox, oy = offsets[(seed + i * 2) % 5]
-            spr = _deco_sprite("snowpine")
-            out.append((cy + oy, spr, (round(cx + ox - spr.get_width() / 2), round(cy + oy - spr.get_height() + 5))))
+            spr = _deco_sprite(snow_choices[(seed + i) % 3])
+            out.append((cy + oy, spr, (round(cx + ox - spr.get_width() / 2), round(cy + oy - spr.get_height() + 4))))
     elif kind == "mountain":
-        spr = _deco_sprite("mountain")
-        out.append((cy + 4, spr, (round(cx - spr.get_width() / 2), round(cy - spr.get_height() + 10))))
-    elif kind == "grass" and seed % 4 == 0:
+        spr = _deco_sprite(f"mountain_{seed % 3}")
+        out.append((cy + 6, spr, (round(cx - spr.get_width() / 2), round(cy - spr.get_height() + 16))))
+    elif kind == "grass" and seed % 3 == 0:
+        grass_choices = ("tree_0", "tree_2", "tree_3")
         ox, oy = offsets[seed % 5]
-        spr = _deco_sprite("oak")
-        out.append((cy + oy, spr, (round(cx + ox - spr.get_width() / 2), round(cy + oy - spr.get_height() + 5))))
+        spr = _deco_sprite(grass_choices[seed % 3])
+        out.append((cy + oy, spr, (round(cx + ox - spr.get_width() / 2), round(cy + oy - spr.get_height() + 4))))
+    elif kind == "marsh" and seed % 3 == 0:
+        ox, oy = offsets[seed % 5]
+        spr = _deco_sprite(("tree_2", "tree_3")[seed % 2])
+        out.append((cy + oy, spr, (round(cx + ox - spr.get_width() / 2), round(cy + oy - spr.get_height() + 4))))
     return out
 
 
@@ -1071,21 +1779,32 @@ def draw_world(
     game_map: Map | None = None,
     houses: list[House] | None = None,
     turn: int = 1,
+    animations: list[dict[str, object]] | None = None,
 ) -> None:
     """Render the 2.5D isometric world map with animated sea, terrain slabs, and fortresses."""
     previous_clip = surface.get_clip()
     surface.set_clip(rect)
 
-    # 1. Living Ocean
+    shake_by_name: dict[str, int] = {}
+    if animations:
+        for anim in animations:
+            if anim.get("type") == "march":
+                t = float(anim.get("elapsed", 0.0)) / max(0.05, float(anim.get("duration", 1.0)))
+                if 0.60 <= t <= 0.88:
+                    tname = str(anim.get("target_name", ""))
+                    shake_by_name[tname] = round(math.sin(t * 95.0) * 4)
+
+    # 1. Living Ocean & Sailing Warships
     draw_sea_animated(surface, rect)
+    _draw_sailing_ships(surface, rect)
 
     # 2. Collect and Render 2.5D Terrain Tiles
     land_cells: list[tuple[int, int, tuple[float, float], str | None]] = []
     house_by_name = {h.name: h for h in houses} if houses else {}
 
-    for col in range(15):
-        for row in range(8):
-            if on_land(col, row) or (col, row) == (12, 6):
+    for col in range(GRID_COLS):
+        for row in range(GRID_ROWS):
+            if on_land(col, row) or (col, row) == DRAGONSTONE_COORD:
                 center = center_of(col, row)
                 owner = owner_at(col, row, game_map)
                 land_cells.append((col, row, center, owner))
@@ -1100,7 +1819,7 @@ def draw_world(
     if game_map is not None:
         for territory in game_map.get_all():
             col, row = territory.col, territory.row
-            if not on_land(col, row) and (col, row) != (12, 6):
+            if not on_land(col, row) and (col, row) != DRAGONSTONE_COORD:
                 continue
             center = center_of(col, row)
             owner_house = house_by_name.get(territory.owner) if territory.owner else None
@@ -1108,7 +1827,7 @@ def draw_world(
             render_queue.append((center[1], "landmark", (center, territory.name, displayed_armies, territory.owner)))
     else:
         for (col, row), (name, feature, armies, house) in LANDMARKS.items():
-            if not on_land(col, row) and (col, row) != (12, 6):
+            if not on_land(col, row) and (col, row) != DRAGONSTONE_COORD:
                 continue
             center = center_of(col, row)
             render_queue.append((center[1], "landmark", (center, name, armies, house)))
@@ -1137,10 +1856,19 @@ def draw_world(
             surface.blit(spr, pos)
         elif kind == "landmark":
             center, name, armies, house = data  # type: ignore
-            draw_isometric_landmark(surface, center, name, armies, house, fonts, mode="body")
+            draw_isometric_landmark(
+                surface, center, name, armies, house, fonts, mode="body", shake_x=shake_by_name.get(name, 0)
+            )
         elif kind == "squad":
             center, house, armies = data  # type: ignore
             draw_knight_squad(surface, center, house, fonts, armies=armies)
+
+    # Living Patrols, Dragon, CoC-style Battle Animations, Weather & Drifting Clouds
+    _draw_road_patrols(surface, game_map, houses)
+    _draw_patrol_dragon(surface, game_map, houses, animations)
+    _draw_animations(surface, fonts, animations)
+    _draw_ambient_weather(surface, rect)
+    _draw_drifting_clouds(surface, rect)
 
     # Name plaques last so no sprite ever hides a label
     for _, kind, data in render_queue:
@@ -1329,92 +2057,137 @@ def draw_raven_panel(
         write(surface, trimmed, (msg_x, row.y + 5), fonts["log"], IVORY)
 
 
+def draw_hud_toggles(
+    surface: pygame.Surface,
+    fonts: dict[str, pygame.font.Font],
+    show_houses: bool = False,
+    show_log: bool = False,
+    mouse: tuple[float, float] | None = None,
+) -> dict[str, pygame.Rect]:
+    """Render top-right collapsible drawer toggle pills on the full-screen map."""
+    buttons: dict[str, pygame.Rect] = {}
+    houses_btn = pygame.Rect(MAP_RECT.right - 274, MAP_RECT.y + 14, 126, 40)
+    log_btn = pygame.Rect(MAP_RECT.right - 140, MAP_RECT.y + 14, 126, 40)
+    buttons["toggle_houses"] = houses_btn
+    buttons["toggle_log"] = log_btn
+    _draw_button(
+        surface,
+        houses_btn,
+        "HOUSES [H]",
+        fonts["micro"],
+        active=show_houses,
+        hovered=bool(mouse and houses_btn.collidepoint(mouse)),
+        accent=GOLD if show_houses else STARK,
+    )
+    _draw_button(
+        surface,
+        log_btn,
+        "RAVEN LOG [L]",
+        fonts["micro"],
+        active=show_log,
+        hovered=bool(mouse and log_btn.collidepoint(mouse)),
+        accent=GOLD if show_log else TARGARYEN,
+    )
+    return buttons
+
+
 def draw_sidebar(
     surface: pygame.Surface,
     fonts: dict[str, pygame.font.Font],
     houses: list[House] | None = None,
     diplomacy: Diplomacy | None = None,
     turn_log: list[dict[str, str | int]] | None = None,
+    show_houses: bool = False,
+    show_log: bool = False,
 ) -> None:
-    """Render the dual side panels: House Intelligence on left, Chronological Raven's Log on right."""
-    # Left column: House Cards
-    rect = pygame.Rect(966, 101, 418, 756)
-    draw_glass_panel(surface, rect, (20, 30, 34), (117, 137, 128), 10)
-    write(surface, "REALM OVERVIEW", (rect.x + 16, rect.y + 14), fonts["subhead"], IVORY)
-    write_right(surface, "HOUSE INTELLIGENCE", rect.right - 16, rect.y + 16, fonts["micro"], MUTED)
-    pygame.draw.line(surface, GOLD, (rect.x + 16, rect.y + 38), (rect.x + 82, rect.y + 38), 2)
+    """Render collapsible floating House Intelligence & Raven's Log drawers over the map."""
+    if not show_houses and not show_log:
+        return
 
-    active_pacts = []
-    if diplomacy is not None:
-        seen_pairs: set[tuple[str, str]] = set()
-        for h1, h2 in diplomacy.alliances.items():
-            if h2 and tuple(sorted((h1, h2))) not in seen_pairs:
-                seen_pairs.add(tuple(sorted((h1, h2))))
-                active_pacts.append(f"{h1.title()} & {h2.title()}")
-    pact_line = f"Active alliance: {', '.join(active_pacts)}" if active_pacts else "No active alliances across the realm."
-    write(surface, pact_line, (rect.x + 16, rect.y + 46), fonts["tiny"], GOLD if active_pacts else MUTED)
+    drawer_y = MAP_RECT.y + 66
+    drawer_h = MAP_RECT.height - 114
+    log_w = 436
+    house_w = 418
 
-    if houses:
-        total_strength = max(1.0, sum(h.get_military_strength() for h in houses if not h.is_eliminated()))
-        cards: list[dict[str, object]] = []
-        for h in houses:
-            status = "ELIMINATED" if h.is_eliminated() else (f"ALLY: {h.allied_with}" if h.allied_with else ("YOUR POV" if h.is_human else "SOLO"))
-            income = 0 if h.is_eliminated() else (10 + sum(t.resource_value for t in h.territories))
-            share = 0.0 if h.is_eliminated() else (h.get_military_strength() / total_strength)
-            cards.append(
-                {
-                    "name": h.name,
-                    "motto": h.motto,
-                    "gold": str(h.gold),
-                    "armies": str(h.armies),
-                    "lands": str(len(h.territories)),
-                    "status": status,
-                    "mode": h.mode,
-                    "pending": h.get_pending_proposal() is not None,
-                    "fuzzy": h.fuzzy_scores,
-                    "income": income,
-                    "power_share": share,
-                }
+    if show_houses:
+        hx = MAP_RECT.right - house_w - (log_w + 26 if show_log else 14)
+        rect = pygame.Rect(hx, drawer_y, house_w, drawer_h)
+        draw_glass_panel(surface, rect, (16, 25, 30), GOLD, 10)
+        write(surface, "REALM OVERVIEW", (rect.x + 16, rect.y + 12), fonts["subhead"], IVORY)
+        write_right(surface, "HOUSE INTELLIGENCE", rect.right - 16, rect.y + 14, fonts["micro"], MUTED)
+        pygame.draw.line(surface, GOLD, (rect.x + 16, rect.y + 36), (rect.x + 82, rect.y + 36), 2)
+
+        active_pacts = []
+        if diplomacy is not None:
+            seen_pairs: set[tuple[str, str]] = set()
+            for h1, h2 in diplomacy.alliances.items():
+                if h2 and tuple(sorted((h1, h2))) not in seen_pairs:
+                    seen_pairs.add(tuple(sorted((h1, h2))))
+                    active_pacts.append(f"{h1.title()} & {h2.title()}")
+        pact_line = f"Active alliance: {', '.join(active_pacts)}" if active_pacts else "No active alliances across the realm."
+        write(surface, pact_line, (rect.x + 16, rect.y + 44), fonts["tiny"], GOLD if active_pacts else MUTED)
+
+        if houses:
+            total_strength = max(1.0, sum(h.get_military_strength() for h in houses if not h.is_eliminated()))
+            cards: list[dict[str, object]] = []
+            for h in houses:
+                status = "ELIMINATED" if h.is_eliminated() else (f"ALLY: {h.allied_with}" if h.allied_with else ("YOUR POV" if h.is_human else "SOLO"))
+                income = 0 if h.is_eliminated() else (10 + sum(t.resource_value for t in h.territories))
+                share = 0.0 if h.is_eliminated() else (h.get_military_strength() / total_strength)
+                cards.append(
+                    {
+                        "name": h.name,
+                        "motto": h.motto,
+                        "gold": str(h.gold),
+                        "armies": str(h.armies),
+                        "lands": str(len(h.territories)),
+                        "status": status,
+                        "mode": h.mode,
+                        "pending": h.get_pending_proposal() is not None,
+                        "fuzzy": h.fuzzy_scores,
+                        "income": income,
+                        "power_share": share,
+                    }
+                )
+            pov_house = next((h for h in houses if h.is_human), houses[0])
+            fuzzy_scores = pov_house.fuzzy_scores
+            perspective = pov_house.name
+        else:
+            cards = [
+                {"name": "STARK", "motto": "WINTER IS COMING", "gold": "60", "armies": "14", "lands": "1", "status": "YOUR POV", "mode": "DECOMPOSED", "pending": False, "income": 19, "power_share": 0.35},
+                {"name": "LANNISTER", "motto": "HEAR ME ROAR", "gold": "65", "armies": "14", "lands": "1", "status": "SOLO", "mode": "DECOMPOSED", "pending": False, "income": 19, "power_share": 0.33},
+                {"name": "TARGARYEN", "motto": "FIRE AND BLOOD", "gold": "45", "armies": "12", "lands": "1", "status": "SOLO", "mode": "DECOMPOSED", "pending": False, "income": 16, "power_share": 0.32},
+            ]
+            fuzzy_scores = None
+            perspective = "STARK"
+
+        for index, card in enumerate(cards):
+            draw_house_stat_card(
+                surface,
+                pygame.Rect(rect.x + 12, rect.y + 66 + index * 154, rect.width - 24, 144),
+                card,
+                fonts,
             )
-        pov_house = next((h for h in houses if h.is_human), houses[0])
-        fuzzy_scores = pov_house.fuzzy_scores
-        perspective = pov_house.name
-    else:
-        cards = [
-            {"name": "STARK", "motto": "WINTER IS COMING", "gold": "50", "armies": "10", "lands": "1", "status": "YOUR POV", "mode": "DECOMPOSED", "pending": False, "income": 18, "power_share": 0.27},
-            {"name": "LANNISTER", "motto": "HEAR ME ROAR", "gold": "70", "armies": "15", "lands": "1", "status": "SOLO", "mode": "DECOMPOSED", "pending": False, "income": 20, "power_share": 0.41},
-            {"name": "TARGARYEN", "motto": "FIRE AND BLOOD", "gold": "40", "armies": "12", "lands": "1", "status": "SOLO", "mode": "DECOMPOSED", "pending": False, "income": 16, "power_share": 0.32},
-        ]
-        fuzzy_scores = None
-        perspective = "STARK"
 
-    for index, card in enumerate(cards):
-        draw_house_stat_card(
+        draw_diplomacy_panel(
             surface,
-            pygame.Rect(rect.x + 12, rect.y + 74 + index * 162, rect.width - 24, 148),
-            card,
+            pygame.Rect(rect.x + 12, rect.bottom - 166, rect.width - 24, 154),
             fonts,
+            fuzzy_scores,
+            perspective_house=perspective,
         )
 
-    draw_diplomacy_panel(
-        surface,
-        pygame.Rect(rect.x + 12, rect.y + 566, rect.width - 24, 176),
-        fonts,
-        fuzzy_scores,
-        perspective_house=perspective,
-    )
-
-    # Right column: The Raven's Log
-    log_entries = turn_log if turn_log is not None else (diplomacy.event_log if diplomacy is not None else None)
-    raven_rect = pygame.Rect(1398, 101, 440, 756)
-    draw_raven_panel(surface, raven_rect, fonts, log_entries)
+    if show_log:
+        log_entries = turn_log if turn_log is not None else (diplomacy.event_log if diplomacy is not None else None)
+        raven_rect = pygame.Rect(MAP_RECT.right - log_w - 14, drawer_y, log_w, drawer_h)
+        draw_raven_panel(surface, raven_rect, fonts, log_entries)
 
 
 def hex_at(pos: tuple[float, float]) -> tuple[int, int] | None:
     best, best_dist = None, HEX_R * 0.95
-    for col in range(15):
-        for row in range(8):
-            if not on_land(col, row) and (col, row) != (12, 6):
+    for col in range(GRID_COLS):
+        for row in range(GRID_ROWS):
+            if not on_land(col, row) and (col, row) != DRAGONSTONE_COORD:
                 continue
             center = center_of(col, row)
             dist = math.hypot(pos[0] - center[0], pos[1] - center[1])
@@ -1626,7 +2399,8 @@ def draw_human_prompt(
     """Render interactive player command bar during human turns."""
     buttons: dict[str, pygame.Rect] = {}
     proposal = house.get_pending_proposal()
-    bar = pygame.Rect(MAP_RECT.x + 250, MAP_RECT.y + 12, MAP_RECT.width - 264, 48)
+    bar_w = min(780, MAP_RECT.width - 560)
+    bar = pygame.Rect(MAP_RECT.centerx - bar_w // 2, MAP_RECT.y + 12, bar_w, 48)
     draw_glass_panel(surface, bar, (22, 34, 40), HOUSE_COLORS[house.name], 8)
 
     if proposal is not None:
@@ -1662,9 +2436,19 @@ def draw_ai_prompt(
     fonts: dict[str, pygame.font.Font],
     turn: int,
     mouse: tuple[float, float] | None = None,
+    battle_status: str | None = None,
 ) -> dict[str, pygame.Rect]:
-    """Render the prominent Advance Turn permission button in AI-vs-AI mode."""
-    bar = pygame.Rect(MAP_RECT.x + 250, MAP_RECT.y + 12, MAP_RECT.width - 264, 48)
+    """Render the Advance Turn button or live Battle-in-Progress banner."""
+    bar_w = min(780, MAP_RECT.width - 560)
+    bar = pygame.Rect(MAP_RECT.centerx - bar_w // 2, MAP_RECT.y + 12, bar_w, 48)
+    if battle_status:
+        draw_glass_panel(surface, bar, (28, 24, 24), (235, 130, 75), 8)
+        write(surface, battle_status, (bar.x + 14, bar.y + 8), fonts["small"], GOLD)
+        write(surface, "War in progress — turn will finish once the battle concludes.", (bar.x + 14, bar.y + 26), fonts["tiny"], MUTED)
+        badge = pygame.Rect(bar.right - 138, bar.y + 9, 126, 30)
+        _draw_button(surface, badge, "FIGHTING...", fonts["micro"], active=False, hovered=False, accent=(235, 130, 75))
+        return {}
+
     draw_glass_panel(surface, bar, (22, 34, 40), GOLD, 8)
     write(surface, f"AI CONQUEST · AWAITING VIEWER PERMISSION (TURN {turn:02d})", (bar.x + 14, bar.y + 8), fonts["small"], GOLD)
     write(surface, "Click 'ADVANCE TURN' or press SPACE / ENTER to step forward.", (bar.x + 14, bar.y + 26), fonts["tiny"], MUTED)
@@ -1685,7 +2469,8 @@ def draw_game_over_banner(
 ) -> dict[str, pygame.Rect]:
     """Render top control banner after dismissing the win popup to inspect the final realm."""
     buttons: dict[str, pygame.Rect] = {}
-    bar = pygame.Rect(MAP_RECT.x + 230, MAP_RECT.y + 12, MAP_RECT.width - 244, 48)
+    bar_w = min(840, MAP_RECT.width - 560)
+    bar = pygame.Rect(MAP_RECT.centerx - bar_w // 2, MAP_RECT.y + 12, bar_w, 48)
     accent = HOUSE_COLORS.get(winner.name, GOLD)
     draw_glass_panel(surface, bar, (22, 34, 40), accent, 8)
 
@@ -1826,16 +2611,35 @@ def draw(
     fonts: dict[str, pygame.font.Font] | None = None,
     mouse: tuple[float, float] | None = None,
     turn: int = 1,
+    animations: list[dict[str, object]] | None = None,
+    show_houses: bool = False,
+    show_log: bool = False,
 ) -> None:
-    """Render the complete Game of Thrones: AI Conquest interface."""
+    """Render the complete full-screen Game of Thrones: AI Conquest interface."""
     active_fonts = _get_fonts(fonts)
     draw_backdrop(screen)
     draw_top_bar(screen, active_fonts, houses=houses, turn=turn, mode=mode)
     draw_glass_panel(screen, MAP_RECT, (18, 30, 36), GOLD, 10)
-    draw_world(screen, active_fonts, MAP_RECT.inflate(-4, -4), game_map=game_map, houses=houses, turn=turn)
+    draw_world(
+        screen,
+        active_fonts,
+        MAP_RECT.inflate(-4, -4),
+        game_map=game_map,
+        houses=houses,
+        turn=turn,
+        animations=animations,
+    )
     pygame.draw.rect(screen, GOLD, MAP_RECT, 1, border_radius=10)
     draw_hover(screen, active_fonts, mouse, game_map=game_map, houses=houses)
-    draw_sidebar(screen, active_fonts, houses=houses, diplomacy=diplomacy, turn_log=turn_log)
+    draw_sidebar(
+        screen,
+        active_fonts,
+        houses=houses,
+        diplomacy=diplomacy,
+        turn_log=turn_log,
+        show_houses=show_houses,
+        show_log=show_log,
+    )
 
 
 def draw_screen(

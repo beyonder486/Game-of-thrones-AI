@@ -22,6 +22,7 @@ from renderer import (
     draw,
     draw_ai_prompt,
     draw_game_over_banner,
+    draw_hud_toggles,
     draw_human_prompt,
     draw_screen,
     draw_startup_menu,
@@ -58,6 +59,10 @@ class GameController:
         self.turn = 1
         self.active_index = 0
         self.winner: House | None = None
+        self.animations: list[dict[str, object]] = []
+        self._round_in_progress: bool = False
+        self._round_house_idx: int = 0
+        self._active_battle_label: str | None = None
 
         # Precompute initial Fuzzy Context A scores so the HUD bars start populated.
         for h in self.houses:
@@ -87,15 +92,29 @@ class GameController:
     def _execute_attack(self, house: House, target_territory: Territory) -> None:
         if not house.territories or target_territory.owner == house.name:
             return
-        # Route troop movement from the nearest owned territory via A*
-        best_route: list[Territory] = []
-        for origin in house.territories:
-            candidate = get_path(self.map, origin, target_territory)
-            if not best_route or len(candidate) < len(best_route):
-                best_route = candidate
-        step_target = best_route[1] if len(best_route) > 1 else target_territory
-        if step_target.owner == house.name:
+        owned_set = set(house.territories)
+        # If target_territory is already directly adjacent to an owned territory, strike it directly;
+        # otherwise route from the nearest owned territory via A* and attack the first border hop.
+        origin_t: Territory | None = None
+        if any(target_territory in t.neighbors for t in owned_set):
+            step_target = target_territory
+        else:
+            best_route: list[Territory] = []
+            for origin in house.territories:
+                candidate = get_path(self.map, origin, target_territory)
+                # Trim any leading owned territories so step_target is the first border crossing
+                while len(candidate) > 1 and candidate[1] in owned_set:
+                    candidate = candidate[1:]
+                if len(candidate) > 1 and (not best_route or len(candidate) < len(best_route)):
+                    best_route = candidate
+            if len(best_route) < 2:
+                return
+            origin_t = best_route[0]
+            step_target = best_route[1]
+        if step_target.owner == house.name or not any(step_target in t.neighbors for t in owned_set):
             return
+        if origin_t is None:
+            origin_t = next((t for t in house.territories if step_target in t.neighbors), house.territories[0])
 
         # Unilateral betrayal if attacking an active ally's territory
         if step_target.owner and self.diplomacy.are_allied(house, step_target.owner):
@@ -104,10 +123,23 @@ class GameController:
             self.diplomacy.log_diplomacy(self.turn, house, f"betrayed {ally_name.title()}")
 
         defender = self.by_name.get(step_target.owner) if step_target.owner else None
+        defender_name = defender.name if defender is not None else "NEUTRAL"
         result = Combat.resolve_combat(house, defender, step_target, self.map)
         outcome = "captured" if result["territory_transferred"] else "repelled at"
         target_label = step_target.name.title().replace("'S", "'s")
         self.diplomacy.log_event(self.turn, house, "Minimax/A*", f"{outcome} {target_label}")
+        self._active_battle_label = f"BATTLE FOR {step_target.name} · HOUSE {house.name} VS {defender_name}"
+        self.animations.append({
+            "type": "march",
+            "house": house.name,
+            "defender": defender_name,
+            "from_coord": (origin_t.col, origin_t.row),
+            "to_coord": (step_target.col, step_target.row),
+            "captured": bool(result["territory_transferred"]),
+            "target_name": step_target.name,
+            "elapsed": 0.0,
+            "duration": 3.2,
+        })
 
         # If a third house was just eliminated, dissolve any orphaned alliance cleanly
         if defender is not None and defender.is_eliminated() and defender.allied_with:
@@ -165,6 +197,15 @@ class GameController:
             # 4. If propose: queue proposal in target's inbox; if betray: break alliance
             if decision == "propose_alliance" and target_house is not None:
                 self.diplomacy.queue_proposal(house, target_house, self.turn)
+                if house.territories and target_house.territories:
+                    self.animations.append({
+                        "type": "raven",
+                        "house": house.name,
+                        "from_coord": (house.territories[0].col, house.territories[0].row),
+                        "to_coord": (target_house.territories[0].col, target_house.territories[0].row),
+                        "elapsed": 0.0,
+                        "duration": 0.75,
+                    })
             elif decision == "betray" and target_house is not None:
                 betray_target = target_house
                 self.diplomacy.break_alliance(house, target_house)
@@ -186,7 +227,16 @@ class GameController:
             if house.is_eliminated():
                 continue
             # 8. collect_income() for all houses
-            house.collect_income()
+            income = house.collect_income()
+            if income > 0 and house.territories:
+                self.animations.append({
+                    "type": "gold",
+                    "house": house.name,
+                    "coord": (house.territories[0].col, house.territories[0].row),
+                    "amount": income,
+                    "elapsed": 0.0,
+                    "duration": 1.05,
+                })
             # 9. recruit_armies() based on available gold (capped per turn to prevent instant snowball)
             recruits = min(MAX_RECRUITS_PER_TURN, max(0, (house.gold - 15) // ARMY_COST))
             if recruits > 0:
@@ -202,7 +252,7 @@ class GameController:
             self.turn += 1
 
     def advance_turn(self) -> None:
-        """Advance one full turn across all non-eliminated houses."""
+        """Advance one full turn synchronously across all non-eliminated houses."""
         if self.winner is not None:
             return
         for house in self.houses:
@@ -211,6 +261,64 @@ class GameController:
                 if self.winner is not None:
                     return
         self._end_of_round()
+
+    # ── Animated sequential battle-gated turn orchestration ─
+    def has_blocking_animation(self) -> bool:
+        """True while a battle/march animation is still playing out on screen."""
+        return any(a.get("type") == "march" for a in self.animations)
+
+    def is_turn_busy(self) -> bool:
+        """True while a round or battle animation is actively in progress."""
+        return self._round_in_progress or self.has_blocking_animation()
+
+    def start_animated_turn(self) -> None:
+        """Begin a turn where each house's war plays out sequentially until finished."""
+        if self.winner is not None or self.is_turn_busy():
+            return
+        self._round_in_progress = True
+        self._round_house_idx = 0
+        self._pump_animated_turn()
+
+    def _pump_animated_turn(self) -> None:
+        """Advance to the next house only once the previous battle animation has finished."""
+        while self._round_in_progress and not self.has_blocking_animation():
+            if self.winner is not None:
+                self._round_in_progress = False
+                self._active_battle_label = None
+                return
+            if self._round_house_idx >= len(self.houses):
+                self._end_of_round()
+                self._round_house_idx = 0
+                if self.mode == "AI vs AI" or self.winner is not None:
+                    self._round_in_progress = False
+                    self._active_battle_label = None
+                    return
+                continue
+            house = self.houses[self._round_house_idx]
+            self._round_house_idx += 1
+            if house.is_eliminated():
+                continue
+            if self.mode == "Human vs AI" and house.is_human:
+                self.active_index = self._round_house_idx - 1
+                self._update_context_a_fuzzy(house)
+                self._round_in_progress = False
+                self._active_battle_label = None
+                return
+            self.step_house_turn(house)
+            if self.has_blocking_animation():
+                return
+
+    def update_animations(self, dt: float) -> None:
+        """Advance active animations and proceed to the next move only when battles finish."""
+        for anim in self.animations:
+            anim["elapsed"] = float(anim.get("elapsed", 0.0)) + dt
+        self.animations = [
+            a for a in self.animations if float(a.get("elapsed", 0.0)) < float(a.get("duration", 1.0))
+        ]
+        if not self.has_blocking_animation():
+            self._active_battle_label = None
+            if self._round_in_progress:
+                self._pump_animated_turn()
 
     # ── Human-vs-AI turn orchestration ─────────────────────
     def active_house(self) -> House:
@@ -262,6 +370,15 @@ class GameController:
             partner = self.by_name.get(partner_name)
             if partner is not None and not partner.is_eliminated():
                 self.diplomacy.queue_proposal(house, partner, self.turn)
+                if house.territories and partner.territories:
+                    self.animations.append({
+                        "type": "raven",
+                        "house": house.name,
+                        "from_coord": (house.territories[0].col, house.territories[0].row),
+                        "to_coord": (partner.territories[0].col, partner.territories[0].row),
+                        "elapsed": 0.0,
+                        "duration": 0.75,
+                    })
         elif action == "betray" and house.allied_with:
             ally = self.by_name.get(house.allied_with)
             if ally is not None:
@@ -278,8 +395,9 @@ class GameController:
         self.winner = self.check_winner()
         if self.winner is not None:
             return True
-        self.active_index += 1
-        self.advance_until_human_or_end()
+        self._round_in_progress = True
+        self._round_house_idx = self.active_index + 1
+        self._pump_animated_turn()
         return True
 
     def check_winner(self) -> House | None:
@@ -329,10 +447,14 @@ def main() -> None:
     selected_house = "STARK"
     in_menu = True
     show_win_modal = True
+    show_houses = False
+    show_log = False
+    is_fullscreen = False
     controller = GameController(mode=selected_mode, human_house=selected_house)
     menu_buttons: dict[str, pygame.Rect] = {}
     human_buttons: dict[str, pygame.Rect] = {}
     ai_buttons: dict[str, pygame.Rect] = {}
+    hud_buttons: dict[str, pygame.Rect] = {}
     win_buttons: dict[str, pygame.Rect] = {}
     game_over_buttons: dict[str, pygame.Rect] = {}
     running = True
@@ -362,17 +484,35 @@ def main() -> None:
                 else:
                     in_menu = True
             elif event.type == pygame.VIDEORESIZE:
-                screen = pygame.display.set_mode(event.size, pygame.RESIZABLE)
+                if not is_fullscreen:
+                    screen = pygame.display.set_mode(event.size, pygame.RESIZABLE)
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_F11:
+                is_fullscreen = not is_fullscreen
+                if is_fullscreen:
+                    screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+                else:
+                    screen = pygame.display.set_mode(window_size, pygame.RESIZABLE)
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_h and not in_menu:
+                show_houses = not show_houses
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_l and not in_menu:
+                show_log = not show_log
             elif (
                 event.type == pygame.KEYDOWN
                 and event.key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_RIGHT)
                 and not in_menu
             ):
-                if controller.winner is not None and show_win_modal:
+                if controller.winner is not None and show_win_modal and not controller.has_blocking_animation():
                     show_win_modal = False
-                elif controller.winner is None and controller.mode == "AI vs AI":
-                    controller.advance_turn()
+                elif controller.winner is None and controller.mode == "AI vs AI" and not controller.is_turn_busy():
+                    controller.start_animated_turn()
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and mouse is not None:
+                if not in_menu and not (controller.winner is not None and show_win_modal):
+                    if "toggle_houses" in hud_buttons and hud_buttons["toggle_houses"].collidepoint(mouse):
+                        show_houses = not show_houses
+                        continue
+                    if "toggle_log" in hud_buttons and hud_buttons["toggle_log"].collidepoint(mouse):
+                        show_log = not show_log
+                        continue
                 if in_menu:
                     if "mode_ai" in menu_buttons and menu_buttons["mode_ai"].collidepoint(mouse):
                         selected_mode = "AI vs AI"
@@ -387,8 +527,10 @@ def main() -> None:
                         in_menu = False
                         show_win_modal = True
                         if controller.mode == "Human vs AI":
-                            controller.advance_until_human_or_end()
-                elif controller.winner is not None:
+                            controller._round_in_progress = True
+                            controller._round_house_idx = 0
+                            controller._pump_animated_turn()
+                elif controller.winner is not None and not controller.has_blocking_animation():
                     if show_win_modal:
                         if ("review_board" in win_buttons and win_buttons["review_board"].collidepoint(mouse)) or (
                             "close" in win_buttons and win_buttons["close"].collidepoint(mouse)
@@ -403,10 +545,10 @@ def main() -> None:
                         elif "play_again" in game_over_buttons and game_over_buttons["play_again"].collidepoint(mouse):
                             in_menu = True
                             show_win_modal = True
-                elif controller.mode == "AI vs AI":
+                elif controller.mode == "AI vs AI" and not controller.is_turn_busy():
                     if "next_turn" in ai_buttons and ai_buttons["next_turn"].collidepoint(mouse):
-                        controller.advance_turn()
-                elif controller.mode == "Human vs AI" and controller.active_house().is_human:
+                        controller.start_animated_turn()
+                elif controller.mode == "Human vs AI" and not controller.is_turn_busy() and controller.active_house().is_human:
                     handled = False
                     for key, btn in human_buttons.items():
                         if btn.collidepoint(mouse):
@@ -428,12 +570,26 @@ def main() -> None:
             fonts=fonts,
             mouse=None if (in_menu or (controller.winner is not None and show_win_modal)) else mouse,
             turn=controller.turn,
+            animations=controller.animations,
+            show_houses=show_houses,
+            show_log=show_log,
         )
         human_buttons = {}
         ai_buttons = {}
+        hud_buttons = {}
         game_over_buttons = {}
-        if not in_menu and controller.winner is None:
-            if controller.mode == "Human vs AI" and controller.active_house().is_human:
+        if not in_menu and not (controller.winner is not None and show_win_modal and not controller.has_blocking_animation()):
+            hud_buttons = draw_hud_toggles(canvas, fonts, show_houses=show_houses, show_log=show_log, mouse=mouse)
+        if not in_menu and (controller.winner is None or controller.has_blocking_animation()):
+            if controller.is_turn_busy():
+                draw_ai_prompt(
+                    canvas,
+                    fonts,
+                    controller.turn,
+                    mouse=mouse,
+                    battle_status=controller._active_battle_label or "WAR IN PROGRESS · RESOLVING MOVES...",
+                )
+            elif controller.mode == "Human vs AI" and controller.active_house().is_human:
                 human_buttons = draw_human_prompt(
                     canvas, fonts, controller.active_house(), controller.diplomacy, mouse=mouse
                 )
@@ -443,7 +599,7 @@ def main() -> None:
             menu_buttons = draw_startup_menu(
                 canvas, fonts, selected_mode=selected_mode, selected_house=selected_house, mouse=mouse
             )
-        elif controller.winner is not None:
+        elif controller.winner is not None and not controller.has_blocking_animation():
             if show_win_modal:
                 win_buttons = draw_win_screen(canvas, fonts, controller.winner, mouse=mouse)
             else:
@@ -455,7 +611,8 @@ def main() -> None:
         else:
             screen.blit(pygame.transform.smoothscale(canvas, scaled_size), offset)
         pygame.display.flip()
-        clock.tick(FPS)
+        dt = clock.tick(FPS) / 1000.0
+        controller.update_animations(dt)
 
     pygame.quit()
 
