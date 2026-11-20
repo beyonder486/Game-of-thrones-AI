@@ -149,3 +149,16 @@ python main.py
     ├── ui/                     # Supersampled HUD icons & house crests
     └── units/                  # Isometric knight squad sprite
 ```
+
+---
+
+## Documentation
+
+Full design and reference documentation lives in [`GUIDE/`](GUIDE/):
+
+| Document | What it covers |
+|---|---|
+| [`GUIDE/instructions.md`](GUIDE/instructions.md) | The specification — what was to be built |
+| [`GUIDE/instruction 2.md`](GUIDE/instruction%202.md) | Mechanics reference — every rule and formula with `file:line` citations |
+| [`GUIDE/CODE_MAP.md`](GUIDE/CODE_MAP.md) | Per-file function reference and data-flow diagrams |
+| [`GUIDE/TO_IMPLEMENT.md`](GUIDE/TO_IMPLEMENT.md) | Spec-gap audit and outstanding work |
