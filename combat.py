@@ -8,6 +8,18 @@ from house import House
 from map import Map, Territory
 
 
+def effective_defense(defender_armies: float, defense_bonus: int, is_house: bool) -> float:
+    """Compute effective defensive strength.
+
+    Neutral garrisons (small 2–14 forces) scale directly by defense_bonus,
+    while full Great House army pools receive a realistic fortification multiplier
+    (1.0 + 0.15 * defense_bonus) so rival kingdoms can wage viable wars.
+    """
+    if is_house:
+        return defender_armies * (1.0 + 0.15 * defense_bonus)
+    return defender_armies * defense_bonus
+
+
 class Combat:
     """Resolves battles over contested or neutral territories."""
 
@@ -28,7 +40,8 @@ class Combat:
 
         defender_armies = defender.armies if defender is not None else territory.armies
         attacker_power = attacker.armies * random.uniform(0.8, 1.2)
-        defender_power = defender_armies * territory.defense_bonus * random.uniform(0.8, 1.2)
+        base_def = effective_defense(defender_armies, territory.defense_bonus, is_house=(defender is not None))
+        defender_power = base_def * random.uniform(0.8, 1.2)
 
         if attacker_power > defender_power:
             attacker_losses = int(defender_armies * 0.5)

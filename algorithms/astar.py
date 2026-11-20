@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import heapq
-import math
 
-from map import Map, Territory
+from map import Map, Territory, hex_distance
 
 
 def _heuristic(a: Territory, b: Territory) -> float:
-    return math.hypot(a.col - b.col, a.row - b.row)
+    return float(hex_distance((a.col, a.row), (b.col, b.row)))
 
 
 def get_path(game_map: Map, start: Territory, goal: Territory) -> list[Territory]:

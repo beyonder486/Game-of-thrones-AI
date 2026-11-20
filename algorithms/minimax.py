@@ -13,10 +13,29 @@ KNOWN APPROXIMATIONS
 
 from __future__ import annotations
 
+from algorithms.astar import get_path
+from combat import effective_defense
 from constants import MIN_ATTACK_ARMIES, MINIMAX_DEPTH, THRONE_BONUS
 from diplomacy import Diplomacy
 from house import House
 from map import Map, Territory
+
+
+def _throne_path_costs(game_map: Map) -> dict[str, float]:
+    """Compute (and cache on the map) A* defense-weighted path cost from every hold to King's Landing."""
+    cached = getattr(game_map, "_astar_throne_costs", None)
+    if isinstance(cached, dict):
+        return cached
+    throne = game_map.iron_throne
+    costs: dict[str, float] = {}
+    for t in game_map.get_all():
+        if t == throne:
+            costs[t.name] = 0.0
+        else:
+            path = get_path(game_map, t, throne)
+            costs[t.name] = sum(float(step.defense_bonus) for step in path[1:]) if path else 20.0
+    setattr(game_map, "_astar_throne_costs", costs)
+    return costs
 
 
 class _State:
@@ -50,12 +69,16 @@ def _snapshot(all_houses: list[House], game_map: Map) -> _State:
 
 
 def _evaluate_state(me: str, enemy_names: list[str], game_map: Map, state: _State) -> float:
-    own_territory_score = sum(
-        t.resource_value + t.defense_bonus for t in game_map.get_all() if state.owner[t.name] == me
-    )
+    all_territories = game_map.get_all()
+    own_territories = [t for t in all_territories if state.owner[t.name] == me]
+    own_territory_score = sum(t.resource_value + t.defense_bonus for t in own_territories)
     throne_bonus = THRONE_BONUS if state.owner[game_map.iron_throne.name] == me else 0
+    # A* throne-corridor proximity: reward advancing along the lowest-defense-cost route to King's Landing
+    throne_costs = _throne_path_costs(game_map)
+    min_throne_cost = min((throne_costs[t.name] for t in own_territories), default=20.0)
+    throne_approach = max(0.0, 12.0 - min_throne_cost) * 1.5
     enemy_score = sum(
-        sum(t.resource_value for t in game_map.get_all() if state.owner[t.name] == e)
+        sum(t.resource_value for t in all_territories if state.owner[t.name] == e)
         + state.armies[e] * 1.5
         for e in enemy_names
     )
@@ -64,6 +87,7 @@ def _evaluate_state(me: str, enemy_names: list[str], game_map: Map, state: _Stat
         + state.armies[me] * 1.5
         + state.gold[me] * 0.5
         + throne_bonus
+        + throne_approach
         - enemy_score
     )
 
@@ -95,7 +119,7 @@ def _moves(state: _State, game_map: Map, name: str, forbidden: set[str]) -> list
             # Do not rush the Iron Throne unless military strength can plausibly overcome its defense
             if nb.is_iron_throne:
                 d_armies = state.armies[owner] if owner else state.garrison[nb.name]
-                if a_armies < d_armies * nb.defense_bonus:
+                if a_armies < effective_defense(d_armies, nb.defense_bonus, is_house=bool(owner)):
                     continue
             seen.add(nb.name)
             result.append(nb)
@@ -108,7 +132,7 @@ def _apply(state: _State, attacker: str, target: Territory) -> _State:
     defender = s.owner[target.name]
     d_armies = s.armies[defender] if defender else s.garrison[target.name]
     a_armies = s.armies[attacker]
-    if a_armies > d_armies * target.defense_bonus:
+    if a_armies > effective_defense(d_armies, target.defense_bonus, is_house=bool(defender)):
         s.armies[attacker] = max(1, a_armies - int(d_armies * 0.5))
         if defender:
             s.armies[defender] = max(1, d_armies - int(d_armies * 0.8))
@@ -197,6 +221,27 @@ def _search_root(
     return scores
 
 
+def _decomposed_scores(
+    house: House,
+    enemies: list[House],
+    game_map: Map,
+    root_moves: list[Territory | None],
+    state: _State,
+    my_forbidden: set[str],
+    depth: int = MINIMAX_DEPTH,
+) -> dict[str | None, float]:
+    total = sum(e.get_military_strength() for e in enemies) or 1.0
+    combined: dict[str | None, float] = {}
+    for enemy in enemies:
+        weight = enemy.get_military_strength() / total
+        scores = _search_root(
+            state, game_map, house.name, root_moves, my_forbidden, [enemy.name], [enemy.name], depth
+        )
+        for key, value in scores.items():
+            combined[key] = combined.get(key, 0.0) + weight * value
+    return combined
+
+
 def decomposed_minimax(
     house: House,
     enemies: list[House],
@@ -210,16 +255,7 @@ def decomposed_minimax(
     #   score = w2 * minimax(H1 vs H2) + w3 * minimax(H1 vs H3)
     #   w_i   = military_strength(H_i) / total_enemy_strength
     # May underestimate coordination effects between enemies.
-    total = sum(e.get_military_strength() for e in enemies) or 1.0
-    combined: dict[str | None, float] = {}
-    for enemy in enemies:
-        weight = enemy.get_military_strength() / total
-        scores = _search_root(
-            state, game_map, house.name, root_moves, my_forbidden, [enemy.name], [enemy.name], depth
-        )
-        for key, value in scores.items():
-            combined[key] = combined.get(key, 0.0) + weight * value
-    return _pick(combined, game_map)
+    return _pick(_decomposed_scores(house, enemies, game_map, root_moves, state, my_forbidden, depth), game_map)
 
 
 def paranoid_minimax(
@@ -246,24 +282,17 @@ def _pick(scores: dict[str | None, float], game_map: Map) -> Territory | None:
     return game_map.by_name[best] if best is not None else None
 
 
-def get_best_move(
+def get_move_scores(
     house: House,
     all_houses: list[House],
     game_map: Map,
     diplomacy: Diplomacy,
     betray_target: House | None = None,
-) -> Territory | None:
-    """Select the combat/expansion target (None = hold this turn).
-
-    Switch logic:
-      - enemies allied with each other → Paranoid (merged coalition)
-      - this house is in an alliance   → Paranoid vs the remaining enemy
-      - otherwise                      → Decomposed
-    When `betray_target` is given, the root move must strike that ally's territory.
-    """
+) -> dict[str | None, float]:
+    """Return Minimax scores for every candidate adjacent territory plus None (Hold)."""
     others = [h for h in all_houses if h.name != house.name and not h.is_eliminated()]
     if not others or house.armies <= 0:
-        return None
+        return {}
     state = _snapshot(all_houses, game_map)
 
     ally = next((h for h in others if diplomacy.are_allied(house, h)), None)
@@ -282,10 +311,24 @@ def get_best_move(
 
     if ally is not None and betray_target is None:
         house.mode = "PARANOID"
-        return paranoid_minimax(house, enemies, game_map, root_moves, state, my_forbidden)
+        names = [e.name for e in enemies]
+        return _search_root(state, game_map, house.name, root_moves, my_forbidden, names, names, MINIMAX_DEPTH)
     if len(enemies) >= 2 and diplomacy.are_allied(enemies[0], enemies[1]):
         house.mode = "PARANOID"
-        return paranoid_minimax(house, enemies, game_map, root_moves, state, my_forbidden)
+        names = [e.name for e in enemies]
+        return _search_root(state, game_map, house.name, root_moves, my_forbidden, names, names, MINIMAX_DEPTH)
 
     house.mode = "DECOMPOSED"
-    return decomposed_minimax(house, enemies, game_map, root_moves, state, my_forbidden)
+    return _decomposed_scores(house, enemies, game_map, root_moves, state, my_forbidden)
+
+
+def get_best_move(
+    house: House,
+    all_houses: list[House],
+    game_map: Map,
+    diplomacy: Diplomacy,
+    betray_target: House | None = None,
+) -> Territory | None:
+    """Select the combat/expansion target (None = hold this turn)."""
+    scores = get_move_scores(house, all_houses, game_map, diplomacy, betray_target=betray_target)
+    return _pick(scores, game_map)

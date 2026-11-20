@@ -17,9 +17,11 @@ import math
 import random
 
 from algorithms.greedy import greedy_pick
+from combat import effective_defense
 from constants import (
     ARMY_COST,
     BASE_INCOME,
+    MAX_RECRUITS_PER_TURN,
     MCTS_ITER,
     MCTS_ROLLOUT_DEPTH,
     REWARD_ALLIANCE_RISK,
@@ -80,6 +82,7 @@ class _Sim:
 
     def candidates(self, name: str, protected: str | None, only: str | None = None) -> list[Territory]:
         seen: set[int] = set()
+        a_armies = self.armies[name]
         for i, owner in enumerate(self.owner):
             if owner != name:
                 continue
@@ -89,6 +92,11 @@ class _Sim:
                     continue
                 if only is not None and o != only:
                     continue
+                target = self.territories[j]
+                if target.is_iron_throne:
+                    d_armies = self.armies[o] if o else float(self.garrison[j])
+                    if a_armies < effective_defense(d_armies, target.defense_bonus, is_house=bool(o)):
+                        continue
                 seen.add(j)
         return [self.territories[j] for j in seen]
 
@@ -97,11 +105,11 @@ class _Sim:
         defender = self.owner[j]
         d_armies = self.armies[defender] if defender else float(self.garrison[j])
         a_power = self.armies[attacker] * random.uniform(0.8, 1.2)
-        d_power = d_armies * target.defense_bonus * random.uniform(0.8, 1.2)
+        d_power = effective_defense(d_armies, target.defense_bonus, is_house=bool(defender)) * random.uniform(0.8, 1.2)
         if a_power > d_power:
-            self.armies[attacker] = max(0.0, self.armies[attacker] - int(d_armies * 0.5))
+            self.armies[attacker] = max(1.0, self.armies[attacker] - int(d_armies * 0.5))
             if defender:
-                self.armies[defender] = d_armies - int(d_armies * 0.8)
+                self.armies[defender] = max(1.0, d_armies - int(d_armies * 0.8))
             else:
                 self.garrison[j] = 0
             self.owner[j] = attacker
@@ -109,22 +117,29 @@ class _Sim:
                 self.gold[attacker] += self.gold[defender]
                 self.gold[defender] = 0.0
         else:
-            self.armies[attacker] -= int(self.armies[attacker] * 0.6)
+            self.armies[attacker] = max(1.0, self.armies[attacker] - int(self.armies[attacker] * 0.6))
             if defender:
-                self.armies[defender] = d_armies - int(d_armies * 0.2)
+                self.armies[defender] = max(1.0, d_armies - int(d_armies * 0.2))
             else:
-                self.garrison[j] = int(d_armies - int(d_armies * 0.2))
+                self.garrison[j] = max(1, int(d_armies - int(d_armies * 0.2)))
 
     def economy(self) -> None:
         for name in self.order:
             if not self.alive(name):
                 continue
-            self.gold[name] += BASE_INCOME + sum(
-                t.resource_value for t, o in zip(self.territories, self.owner) if o == name
-            )
-            recruits = int(self.gold[name] // ARMY_COST) // 2
-            self.armies[name] += recruits
-            self.gold[name] -= recruits * ARMY_COST
+            owned_count = 0
+            res_sum = 0
+            for t, o in zip(self.territories, self.owner):
+                if o == name:
+                    owned_count += 1
+                    res_sum += t.resource_value
+            self.gold[name] += BASE_INCOME + res_sum
+            supply_cap = 12 + 6 * owned_count
+            affordable = max(0, int(self.gold[name] - 15) // ARMY_COST)
+            recruits = min(MAX_RECRUITS_PER_TURN, affordable, max(0, int(supply_cap - self.armies[name])))
+            if recruits > 0:
+                self.armies[name] += recruits
+                self.gold[name] -= recruits * ARMY_COST
 
     def reward(self, me: str, alliance_risk_penalty: float) -> float:
         mine = [t for t, o in zip(self.territories, self.owner) if o == me]

@@ -88,10 +88,11 @@ Each round processes surviving houses in order (**Stark → Lannister → Targar
 ## Combat & Diplomacy Rules
 
 - **Combat Resolution ([`combat.py`](combat.py)):**
-  - `Attack Power = attacker.armies * Uniform(0.85, 1.15)`
-  - `Defense Power = defender_armies * territory.defense_bonus * Uniform(0.85, 1.15)`
+  - `Attack Power = attacker.armies * Uniform(0.80, 1.20)`
+  - `Defense Power = effective_defense * Uniform(0.80, 1.20)` where `effective_defense = defender_armies * defense_bonus` for neutral garrisons and `defender_armies * (1.0 + 0.15 * defense_bonus)` for rival Great House pools.
   - If `Attack Power > Defense Power`, the attacker captures the territory (`50%` of defender count lost by attacker; `80%` lost by defender). If a house loses its final territory, the conqueror seizes its remaining gold treasury.
   - Otherwise, the attack is repelled (`60%` of attacker armies lost; `20%` of defender armies lost).
+- **Army Supply Cap:** Recruitment is capped at `12 + 6 * holds` armies (up to `3` recruits/turn at `5 Gold` each) so houses must expand to field larger forces.
 - **No Resource Sharing:** Allied houses never pool gold, armies, or territories—every captured hold belongs strictly to the house that conquered it.
 
 ---

@@ -30,6 +30,15 @@ class Diplomacy:
         self.event_log: list[dict[str, str | int]] = []
 
     # ── Helpers ────────────────────────────────────────────
+    def _is_alive(self, name: str) -> bool:
+        house = self.houses.get(name)
+        return house is None or not house.is_eliminated()
+
+    def _surviving_count(self) -> int:
+        if not self.houses:
+            return len(HOUSE_NAMES)
+        return sum(1 for h in self.houses.values() if not h.is_eliminated())
+
     def _sync_house(self, name: str) -> None:
         house = self.houses.get(name)
         if house is None:
@@ -39,25 +48,50 @@ class Diplomacy:
             if other != name:
                 house.trust_history[other] = self.trust_scores[(name, other)]
 
+    def purge_eliminated(self, house: object | str) -> None:
+        """Dissolve any pact and purge all pending proposals to/from an eliminated house."""
+        k = _house_key(house)
+        ally = self.alliances.get(k)
+        if ally:
+            self.dissolve_alliance(k, ally)
+        self.pending_proposals.pop(k, None)
+        if k in self.houses:
+            self.houses[k].clear_inbox()
+        for target_key in list(self.pending_proposals.keys()):
+            prop = self.pending_proposals.get(target_key)
+            if prop and _house_key(str(prop.get("from", ""))) == k:
+                self.pending_proposals.pop(target_key, None)
+                if target_key in self.houses:
+                    self.houses[target_key].clear_inbox()
+        for h in self.houses.values():
+            pending = h.get_pending_proposal()
+            if pending and _house_key(str(pending.get("from", ""))) == k:
+                h.clear_inbox()
+
     # ── Alliances ──────────────────────────────────────────
     def are_allied(self, h1: object | str, h2: object | str) -> bool:
         k1, k2 = _house_key(h1), _house_key(h2)
         return self.alliances.get(k1) == k2 and self.alliances.get(k2) == k1
 
-    def form_alliance(self, h1: object | str, h2: object | str) -> None:
+    def form_alliance(self, h1: object | str, h2: object | str, turn: int = 0) -> None:
         k1, k2 = _house_key(h1), _house_key(h2)
-        for k in (k1, k2):
+        if not self._is_alive(k1) or not self._is_alive(k2) or self._surviving_count() < 3:
+            return
+        for k, new_ally in ((k1, k2), (k2, k1)):
             prev = self.alliances.get(k)
-            if prev:
+            if prev and prev != new_ally:
+                # Switching to a new ally while already allied is an automatic betrayal.
                 self.alliances[prev] = None
-                self._sync_house(prev)
+                self.alliances[k] = None
+                self.update_trust(k, prev, "betray")
+                self.log_diplomacy(turn, k, f"betrayed {prev.title()} to ally with {new_ally.title()}")
         self.alliances[k1] = k2
         self.alliances[k2] = k1
-        # Both partners now face a single coalition context → Paranoid Minimax.
-        for k in (k1, k2):
-            self._sync_house(k)
-            if k in self.houses:
-                self.houses[k].mode = "PARANOID"
+        # All houses now operate in coalition context → Paranoid Minimax (including lone target).
+        for name in HOUSE_NAMES:
+            self._sync_house(name)
+            if name in self.houses and not self.houses[name].is_eliminated():
+                self.houses[name].mode = "PARANOID"
 
     def dissolve_alliance(self, h1: object | str, h2: object | str) -> None:
         """End a pact without a trust penalty (e.g. a partner was eliminated)."""
@@ -66,10 +100,11 @@ class Diplomacy:
             self.alliances[k1] = None
         if self.alliances.get(k2) == k1:
             self.alliances[k2] = None
-        for k in (k1, k2):
-            self._sync_house(k)
-            if k in self.houses:
-                self.houses[k].mode = "DECOMPOSED"
+        any_active = any(v is not None for v in self.alliances.values())
+        for name in HOUSE_NAMES:
+            self._sync_house(name)
+            if name in self.houses and not any_active:
+                self.houses[name].mode = "DECOMPOSED"
 
     def break_alliance(self, h1: object | str, h2: object | str) -> None:
         """Unilateral betrayal by h1 against h2."""
@@ -98,6 +133,8 @@ class Diplomacy:
     # ── Asynchronous proposals ─────────────────────────────
     def queue_proposal(self, proposer: object | str, target: object | str, turn: int) -> None:
         k1, k2 = _house_key(proposer), _house_key(target)
+        if not self._is_alive(k1) or not self._is_alive(k2) or self._surviving_count() < 3:
+            return
         proposal = {"from": k1, "type": "alliance_proposal", "turn": turn}
         self.pending_proposals[k2] = proposal
         if k2 in self.houses:
@@ -118,10 +155,10 @@ class Diplomacy:
         self.pending_proposals.pop(k2, None)
         if k2 in self.houses:
             self.houses[k2].clear_inbox()
-        if accepted:
-            self.form_alliance(k1, k2)
+        if accepted and self._is_alive(k1) and self._is_alive(k2) and self._surviving_count() >= 3:
+            self.form_alliance(k1, k2, turn=turn)
             self.log_diplomacy(turn, k2, f"accepted alliance with {k1.title()}")
-        else:
+        elif not accepted:
             self.log_diplomacy(turn, k2, f"rejected alliance with {k1.title()}")
 
     # ── Raven's Log ────────────────────────────────────────

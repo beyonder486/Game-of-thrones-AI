@@ -44,6 +44,8 @@ class House:
             "betrayal": 0.0,
             "solo": 0.0,
         }
+        self.reachable_holds: set[Territory] = set()
+        self.expansion_paths: list[list[Territory]] = []
 
     # ── Economy ────────────────────────────────────────────
     def collect_income(self) -> int:

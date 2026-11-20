@@ -12,7 +12,7 @@ from algorithms.bfs import get_reachable
 from algorithms.dfs import get_expansion_paths
 from algorithms.fuzzy_diplomacy import evaluate_diplomacy
 from algorithms.mcts import get_diplomacy_decision, get_proposal_response
-from algorithms.minimax import get_best_move
+from algorithms.minimax import get_best_move, get_move_scores
 from combat import Combat
 from constants import ARMY_COST, FPS, HEIGHT, MAX_RECRUITS_PER_TURN, WIDTH
 from diplomacy import Diplomacy
@@ -63,10 +63,18 @@ class GameController:
         self._round_in_progress: bool = False
         self._round_house_idx: int = 0
         self._active_battle_label: str | None = None
+        self._human_proposed_this_turn: bool = False
+        self.human_minimax_scores: dict[str | None, float] = {}
 
         # Precompute initial Fuzzy Context A scores so the HUD bars start populated.
         for h in self.houses:
             self._update_context_a_fuzzy(h)
+
+    def _refresh_human_minimax_scores(self, house: House) -> None:
+        if self.mode == "Human vs AI" and house.is_human and not house.is_eliminated() and self.winner is None:
+            self.human_minimax_scores = get_move_scores(house, self.houses, self.map, self.diplomacy)
+        else:
+            self.human_minimax_scores = {}
 
     def _update_context_a_fuzzy(self, house: House) -> dict[str, float]:
         enemies = [h for h in self.houses if h.name != house.name and not h.is_eliminated()]
@@ -141,9 +149,9 @@ class GameController:
             "duration": 3.2,
         })
 
-        # If a third house was just eliminated, dissolve any orphaned alliance cleanly
-        if defender is not None and defender.is_eliminated() and defender.allied_with:
-            self.diplomacy.dissolve_alliance(defender, defender.allied_with)
+        # If a house was just eliminated, dissolve its pact and purge all pending proposals to/from it
+        if defender is not None and defender.is_eliminated():
+            self.diplomacy.purge_eliminated(defender)
 
     def step_house_turn(self, house: House) -> None:
         """Execute the exact turn pipeline for a single AI house."""
@@ -183,8 +191,8 @@ class GameController:
             # 1. BFS/DFS — update reachability map and deep expansion scouting
             if house.territories:
                 capital = house.territories[0]
-                _reachable = get_reachable(self.map, capital, n_steps=3)
-                _expansion = get_expansion_paths(self.map, capital, depth_limit=3)
+                house.reachable_holds = get_reachable(self.map, capital, n_steps=3)
+                house.expansion_paths = get_expansion_paths(self.map, capital, depth_limit=3)
 
             # 2. Fuzzy Logic — evaluate diplomatic landscape (Context A)
             fuzzy_scores = self._update_context_a_fuzzy(house)
@@ -237,8 +245,13 @@ class GameController:
                     "elapsed": 0.0,
                     "duration": 1.05,
                 })
-            # 9. recruit_armies() based on available gold (capped per turn to prevent instant snowball)
-            recruits = min(MAX_RECRUITS_PER_TURN, max(0, (house.gold - 15) // ARMY_COST))
+            # 9. recruit_armies() based on available gold (capped per turn & by realm supply limit)
+            supply_cap = 12 + 6 * len(house.territories)
+            recruits = min(
+                MAX_RECRUITS_PER_TURN,
+                max(0, (house.gold - 15) // ARMY_COST),
+                max(0, supply_cap - house.armies),
+            )
             if recruits > 0:
                 house.recruit_armies(recruits)
             # 10. Update trust history for surviving alliances
@@ -300,7 +313,14 @@ class GameController:
                 continue
             if self.mode == "Human vs AI" and house.is_human:
                 self.active_index = self._round_house_idx - 1
-                self._update_context_a_fuzzy(house)
+                self._human_proposed_this_turn = False
+                pending = house.get_pending_proposal()
+                proposer = self.by_name.get(str(pending.get("from", "")).upper()) if pending else None
+                if proposer is not None and not proposer.is_eliminated():
+                    self._update_context_b_fuzzy(house, proposer)
+                else:
+                    self._update_context_a_fuzzy(house)
+                self._refresh_human_minimax_scores(house)
                 self._round_in_progress = False
                 self._active_battle_label = None
                 return
@@ -338,7 +358,14 @@ class GameController:
                 self.active_index += 1
                 continue
             if house.is_human:
-                self._update_context_a_fuzzy(house)
+                self._human_proposed_this_turn = False
+                pending = house.get_pending_proposal()
+                proposer = self.by_name.get(str(pending.get("from", "")).upper()) if pending else None
+                if proposer is not None and not proposer.is_eliminated():
+                    self._update_context_b_fuzzy(house, proposer)
+                else:
+                    self._update_context_a_fuzzy(house)
+                self._refresh_human_minimax_scores(house)
                 break
             self.step_house_turn(house)
             if self.winner is not None:
@@ -354,10 +381,11 @@ class GameController:
         pending = house.get_pending_proposal()
         if pending is not None and action in ("accept", "reject"):
             proposer = self.by_name.get(str(pending.get("from", "")).upper())
-            if proposer is not None:
+            if proposer is not None and not proposer.is_eliminated():
                 self.diplomacy.resolve_proposal(proposer, house, accepted=(action == "accept"), turn=self.turn)
             else:
                 house.clear_inbox()
+            self._refresh_human_minimax_scores(house)
             return False
 
         # One action per turn for the human house
@@ -366,10 +394,14 @@ class GameController:
                 return False
             self._execute_attack(house, target_territory)
         elif action.startswith("ally_"):
+            if self._human_proposed_this_turn:
+                return False
+            surviving = sum(1 for h in self.houses if not h.is_eliminated())
             partner_name = action.split("_", 1)[1].upper()
             partner = self.by_name.get(partner_name)
-            if partner is not None and not partner.is_eliminated():
+            if surviving >= 3 and partner is not None and not partner.is_eliminated():
                 self.diplomacy.queue_proposal(house, partner, self.turn)
+                self._human_proposed_this_turn = True
                 if house.territories and partner.territories:
                     self.animations.append({
                         "type": "raven",
@@ -379,6 +411,8 @@ class GameController:
                         "elapsed": 0.0,
                         "duration": 0.75,
                     })
+            # Per spec, proposing house still makes its military move this turn.
+            return False
         elif action == "betray" and house.allied_with:
             ally = self.by_name.get(house.allied_with)
             if ally is not None:
@@ -392,6 +426,7 @@ class GameController:
         else:
             return False
 
+        self.human_minimax_scores = {}
         self.winner = self.check_winner()
         if self.winner is not None:
             return True
@@ -445,6 +480,7 @@ def main() -> None:
 
     selected_mode = "AI vs AI"
     selected_house = "STARK"
+    selected_fuzzy_house = selected_house
     in_menu = True
     show_win_modal = True
     show_houses = False
@@ -455,6 +491,7 @@ def main() -> None:
     human_buttons: dict[str, pygame.Rect] = {}
     ai_buttons: dict[str, pygame.Rect] = {}
     hud_buttons: dict[str, pygame.Rect] = {}
+    sidebar_buttons: dict[str, pygame.Rect] = {}
     win_buttons: dict[str, pygame.Rect] = {}
     game_over_buttons: dict[str, pygame.Rect] = {}
     running = True
@@ -513,6 +550,20 @@ def main() -> None:
                     if "toggle_log" in hud_buttons and hud_buttons["toggle_log"].collidepoint(mouse):
                         show_log = not show_log
                         continue
+                    tab_clicked = False
+                    for h_name in ("STARK", "LANNISTER", "TARGARYEN"):
+                        tkey = f"fuzzy_tab_{h_name}"
+                        if tkey in sidebar_buttons and sidebar_buttons[tkey].collidepoint(mouse):
+                            selected_fuzzy_house = h_name
+                            tab_clicked = True
+                            break
+                    if tab_clicked:
+                        continue
+                    if (
+                        ("drawer_fuzzy" in sidebar_buttons and sidebar_buttons["drawer_fuzzy"].collidepoint(mouse))
+                        or ("drawer_log" in sidebar_buttons and sidebar_buttons["drawer_log"].collidepoint(mouse))
+                    ):
+                        continue
                 if in_menu:
                     if "mode_ai" in menu_buttons and menu_buttons["mode_ai"].collidepoint(mouse):
                         selected_mode = "AI vs AI"
@@ -524,6 +575,7 @@ def main() -> None:
                             selected_house = h_name
                     if "start" in menu_buttons and menu_buttons["start"].collidepoint(mouse):
                         controller.reset(mode=selected_mode, human_house=selected_house)
+                        selected_fuzzy_house = selected_house
                         in_menu = False
                         show_win_modal = True
                         if controller.mode == "Human vs AI":
@@ -560,7 +612,18 @@ def main() -> None:
                         if clicked is not None:
                             controller.handle_human_action("attack", clicked)
 
-        draw(
+        active_minimax_scores = (
+            controller.human_minimax_scores
+            if (
+                not in_menu
+                and controller.mode == "Human vs AI"
+                and controller.winner is None
+                and not controller.is_turn_busy()
+                and controller.active_house().is_human
+            )
+            else None
+        )
+        sidebar_buttons = draw(
             canvas,
             game_map=controller.map,
             houses=controller.houses,
@@ -573,6 +636,8 @@ def main() -> None:
             animations=controller.animations,
             show_houses=show_houses,
             show_log=show_log,
+            selected_fuzzy_house=selected_fuzzy_house,
+            minimax_scores=active_minimax_scores,
         )
         human_buttons = {}
         ai_buttons = {}
