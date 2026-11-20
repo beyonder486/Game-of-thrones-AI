@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import math
 
+from constants import DRAGONSTONE_COORD, GRID_COLS, GRID_ROWS
+
 
 class Territory:
     """Named seat of power on the Westeros map."""
@@ -36,90 +38,121 @@ class Territory:
 
 
 LANDMARKS: dict[tuple[int, int], tuple[str, str, int, str | None]] = {
-    (6, 1): ("THE WALL", "snow", 3, None),
-    (9, 1): ("CASTLE BLACK", "castle", 2, "STARK"),
-    (4, 2): ("WINTERFELL", "castle", 8, "STARK"),
-    (7, 3): ("MOAT CAILIN", "ruins", 3, None),
-    (1, 2): ("PYKE", "harbor", 2, None),
-    (4, 4): ("RIVERRUN", "castle", 3, None),
-    (11, 2): ("THE EYRIE", "castle", 2, None),
-    (7, 5): ("HARRENHAL", "ruins", 4, None),
-    (10, 4): ("KING'S LANDING", "royal", 5, None),
-    (12, 6): ("DRAGONSTONE", "castle", 7, "TARGARYEN"),
-    (10, 6): ("STORM'S END", "castle", 3, None),
-    (5, 6): ("HIGHGARDEN", "farm", 3, None),
-    (2, 6): ("CASTERLY ROCK", "mine", 8, "LANNISTER"),
+    (8, 1): ("THE WALL", "snow", 3, None),
+    (12, 1): ("CASTLE BLACK", "castle", 2, None),
+    (16, 1): ("DREADFORT", "castle", 3, None),
+    (1, 2): ("PYKE", "harbor", 3, None),
+    (5, 2): ("WINTERFELL", "castle", 8, "STARK"),
+    (9, 2): ("MOAT CAILIN", "ruins", 3, None),
+    (14, 2): ("WHITE HARBOR", "harbor", 3, None),
+    (17, 3): ("THE EYRIE", "castle", 3, None),
     (1, 4): ("LANNISPORT", "harbor", 3, None),
-    (8, 7): ("DORNE", "farm", 3, None),
+    (4, 4): ("RIVERRUN", "castle", 4, None),
+    (7, 4): ("THE TWINS", "castle", 3, None),
+    (10, 4): ("KING'S LANDING", "royal", 14, None),
+    (13, 4): ("HARRENHAL", "ruins", 4, None),
+    (2, 6): ("CASTERLY ROCK", "mine", 8, "LANNISTER"),
+    (5, 7): ("OLDTOWN", "harbor", 3, None),
+    (8, 6): ("HIGHGARDEN", "farm", 4, None),
+    (12, 7): ("DORNE", "farm", 4, None),
+    (15, 6): ("STORM'S END", "castle", 4, None),
+    (18, 6): ("DRAGONSTONE", "castle", 7, "TARGARYEN"),
 }
 
 TERRITORY_SPECS: list[tuple[str, int, int, str, int, int, int, str | None, bool]] = [
     # (name, col, row, feature, resource_value, defense_bonus, armies, owner, is_iron_throne)
     # `armies` is the neutral garrison; house-owned seats are defended by the house's army pool.
-    ("THE WALL", 6, 1, "snow", 4, 3, 3, None, False),
-    ("CASTLE BLACK", 9, 1, "castle", 5, 2, 2, None, False),
-    ("WINTERFELL", 4, 2, "castle", 9, 3, 0, "STARK", False),
-    ("MOAT CAILIN", 7, 3, "ruins", 5, 2, 3, None, False),
+    ("THE WALL", 8, 1, "snow", 4, 3, 3, None, False),
+    ("CASTLE BLACK", 12, 1, "castle", 5, 2, 2, None, False),
+    ("DREADFORT", 16, 1, "castle", 5, 3, 3, None, False),
     ("PYKE", 1, 2, "harbor", 4, 2, 3, None, False),
-    ("RIVERRUN", 4, 4, "castle", 5, 2, 4, None, False),
-    ("THE EYRIE", 11, 2, "castle", 6, 3, 3, None, False),
-    ("HARRENHAL", 7, 5, "ruins", 4, 1, 4, None, False),
-    ("KING'S LANDING", 10, 4, "royal", 15, 2, 14, None, True),
-    ("DRAGONSTONE", 12, 6, "castle", 6, 4, 0, "TARGARYEN", False),
-    ("STORM'S END", 10, 6, "castle", 5, 2, 4, None, False),
-    ("HIGHGARDEN", 5, 6, "farm", 6, 2, 4, None, False),
-    ("CASTERLY ROCK", 2, 6, "mine", 9, 2, 0, "LANNISTER", False),
+    ("WINTERFELL", 5, 2, "castle", 9, 3, 0, "STARK", False),
+    ("MOAT CAILIN", 9, 2, "ruins", 5, 2, 3, None, False),
+    ("WHITE HARBOR", 14, 2, "harbor", 6, 2, 3, None, False),
+    ("THE EYRIE", 17, 3, "castle", 6, 3, 3, None, False),
     ("LANNISPORT", 1, 4, "harbor", 5, 2, 3, None, False),
-    ("DORNE", 8, 7, "farm", 5, 2, 4, None, False),
+    ("RIVERRUN", 4, 4, "castle", 5, 2, 4, None, False),
+    ("THE TWINS", 7, 4, "castle", 5, 3, 3, None, False),
+    ("KING'S LANDING", 10, 4, "royal", 15, 2, 14, None, True),
+    ("HARRENHAL", 13, 4, "ruins", 4, 1, 4, None, False),
+    ("CASTERLY ROCK", 2, 6, "mine", 9, 2, 0, "LANNISTER", False),
+    ("OLDTOWN", 5, 7, "harbor", 6, 2, 3, None, False),
+    ("HIGHGARDEN", 8, 6, "farm", 6, 2, 4, None, False),
+    ("DORNE", 12, 7, "farm", 5, 2, 4, None, False),
+    ("STORM'S END", 15, 6, "castle", 5, 2, 4, None, False),
+    ("DRAGONSTONE", 18, 6, "castle", 6, 4, 0, "TARGARYEN", False),
 ]
 
 TERRITORY_EDGES: list[tuple[str, str]] = [
     ("THE WALL", "CASTLE BLACK"),
-    ("CASTLE BLACK", "WINTERFELL"),
     ("THE WALL", "WINTERFELL"),
-    ("WINTERFELL", "MOAT CAILIN"),
-    ("WINTERFELL", "THE EYRIE"),
-    ("MOAT CAILIN", "RIVERRUN"),
-    ("MOAT CAILIN", "HARRENHAL"),
-    ("MOAT CAILIN", "THE EYRIE"),
-    ("PYKE", "RIVERRUN"),
+    ("THE WALL", "THE TWINS"),
+    ("CASTLE BLACK", "DREADFORT"),
+    ("CASTLE BLACK", "WHITE HARBOR"),
+    ("CASTLE BLACK", "MOAT CAILIN"),
+    ("DREADFORT", "WHITE HARBOR"),
+    ("DREADFORT", "THE EYRIE"),
+    ("WINTERFELL", "PYKE"),
+    ("WINTERFELL", "RIVERRUN"),
+    ("WINTERFELL", "THE TWINS"),
     ("PYKE", "LANNISPORT"),
-    ("RIVERRUN", "CASTERLY ROCK"),
-    ("RIVERRUN", "HARRENHAL"),
-    ("RIVERRUN", "HIGHGARDEN"),
-    ("THE EYRIE", "HARRENHAL"),
+    ("PYKE", "RIVERRUN"),
+    ("WHITE HARBOR", "MOAT CAILIN"),
+    ("WHITE HARBOR", "THE EYRIE"),
+    ("WHITE HARBOR", "KING'S LANDING"),
+    ("MOAT CAILIN", "THE TWINS"),
+    ("MOAT CAILIN", "HARRENHAL"),
+    ("MOAT CAILIN", "KING'S LANDING"),
     ("THE EYRIE", "KING'S LANDING"),
-    ("HARRENHAL", "KING'S LANDING"),
-    ("HARRENHAL", "HIGHGARDEN"),
-    ("KING'S LANDING", "STORM'S END"),
-    ("KING'S LANDING", "DRAGONSTONE"),
-    ("KING'S LANDING", "HIGHGARDEN"),
+    ("THE EYRIE", "DRAGONSTONE"),
+    ("LANNISPORT", "RIVERRUN"),
+    ("LANNISPORT", "CASTERLY ROCK"),
+    ("RIVERRUN", "THE TWINS"),
+    ("RIVERRUN", "CASTERLY ROCK"),
+    ("RIVERRUN", "HIGHGARDEN"),
+    ("THE TWINS", "HIGHGARDEN"),
+    ("THE TWINS", "HARRENHAL"),
+    ("KING'S LANDING", "HARRENHAL"),
     ("KING'S LANDING", "DORNE"),
-    ("DRAGONSTONE", "STORM'S END"),
-    ("STORM'S END", "DORNE"),
-    ("HIGHGARDEN", "CASTERLY ROCK"),
+    ("KING'S LANDING", "STORM'S END"),
+    ("HARRENHAL", "HIGHGARDEN"),
+    ("HARRENHAL", "DORNE"),
+    ("CASTERLY ROCK", "OLDTOWN"),
+    ("OLDTOWN", "HIGHGARDEN"),
     ("HIGHGARDEN", "DORNE"),
-    ("CASTERLY ROCK", "LANNISPORT"),
+    ("DORNE", "STORM'S END"),
+    ("STORM'S END", "DRAGONSTONE"),
 ]
 
 RIVERS: list[list[tuple[int, int]]] = [
-    [(5, 1), (5, 2), (5, 3), (4, 4), (3, 5)],
-    [(8, 2), (8, 3), (8, 4), (9, 4), (9, 5)],
+    [(8, 1), (7, 2), (7, 3), (7, 4), (8, 5), (9, 6)],
+    [(12, 1), (12, 2), (12, 3), (13, 4), (14, 5), (15, 6)],
 ]
 
 ROADS: list[tuple[tuple[int, int], tuple[int, int]]] = [
-    ((6, 1), (4, 2)),
-    ((9, 1), (7, 3)),
-    ((4, 2), (7, 3)),
-    ((7, 3), (4, 4)),
+    ((8, 1), (5, 2)),
+    ((8, 1), (12, 1)),
+    ((12, 1), (16, 1)),
+    ((5, 2), (1, 2)),
+    ((5, 2), (9, 2)),
+    ((5, 2), (4, 4)),
+    ((9, 2), (10, 4)),
+    ((12, 1), (9, 2)),
+    ((14, 2), (13, 4)),
+    ((16, 1), (17, 3)),
+    ((17, 3), (13, 4)),
+    ((4, 4), (1, 4)),
     ((4, 4), (2, 6)),
-    ((4, 4), (7, 5)),
-    ((7, 5), (10, 4)),
-    ((10, 4), (10, 6)),
-    ((7, 5), (8, 7)),
-    ((7, 3), (11, 2)),
-    ((2, 6), (1, 4)),
-    ((2, 6), (5, 6)),
+    ((4, 4), (7, 4)),
+    ((7, 4), (10, 4)),
+    ((10, 4), (13, 4)),
+    ((10, 4), (8, 6)),
+    ((10, 4), (12, 7)),
+    ((13, 4), (15, 6)),
+    ((2, 6), (5, 7)),
+    ((5, 7), (8, 6)),
+    ((8, 6), (12, 7)),
+    ((12, 7), (15, 6)),
 ]
 
 VILLAGES: list[tuple[int, int]] = [(4, 2), (6, 3), (11, 4), (5, 6), (10, 7), (12, 4)]
@@ -129,16 +162,16 @@ FIELD_SQUADS: list[tuple[int, int, str]] = []
 
 def on_land(col: int, row: int) -> bool:
     """Return True if hex (col, row) is part of the Westeros landmass."""
-    nx = (col - 7) / 7.4
+    nx = (col - 9.6) / 9.7
     ny = (row - 3.5) / 4.25
     coastline = (
         1.03
-        + 0.075 * math.sin(col * 1.9 + row * 0.8)
-        + 0.045 * math.cos(row * 2.1 - col * 0.7)
+        + 0.065 * math.sin(col * 1.6 + row * 0.9)
+        + 0.045 * math.cos(row * 2.1 - col * 0.6)
     )
     inside = nx * nx + ny * ny < coastline
-    # Dragonstone sits offshore, separated from the mainland by the Narrow Sea.
-    return inside and (col, row) != (12, 6)
+    # Dragonstone sits offshore across the Narrow Sea.
+    return inside and (col, row) != DRAGONSTONE_COORD
 
 
 def _cube(col: int, row: int) -> tuple[int, int, int]:
@@ -174,14 +207,16 @@ def owner_at(col: int, row: int, game_map: Map | None = None) -> str | None:
 
 def terrain_at(col: int, row: int) -> str:
     """Return the terrain kind at hex (col, row)."""
-    if row <= 1 or (col <= 2 and row <= 4):
+    if row <= 1 or (col <= 3 and row <= 3):
         return "snow" if (col + row) % 3 else "mountain"
-    if row >= 7 and col >= 8:
+    if col in (16, 17, 18) and row in (2, 3):
+        return "mountain"
+    if row >= 7 and col >= 10:
         return "dry"
-    if 3 <= row <= 6 and (col + row) % 4 in (0, 1):
-        return "forest"
-    if row in (3, 4, 5) and col in (7, 8, 9):
+    if row in (3, 4) and col in (9, 10, 11):
         return "marsh"
+    if 2 <= row <= 6 and (col + row) % 4 in (0, 1):
+        return "forest"
     return "grass"
 
 
@@ -209,25 +244,46 @@ class Map:
             self.by_name[name] = territory
             self.by_coord[(col, row)] = territory
 
-        for a_name, b_name in TERRITORY_EDGES:
-            t_a = self.by_name[a_name]
-            t_b = self.by_name[b_name]
-            if t_b not in t_a.neighbors:
-                t_a.neighbors.append(t_b)
-            if t_a not in t_b.neighbors:
-                t_b.neighbors.append(t_a)
-
         self.iron_throne: Territory = next(t for t in self.territories if t.is_iron_throne)
 
-        # Precompute which seat each land hex belongs to (nearest within 2 hexes).
+        # Partition every land hex cleanly into nearest territory Voronoi region.
         self._regions: dict[tuple[int, int], Territory | None] = {}
-        for col in range(15):
-            for row in range(8):
+        for col in range(GRID_COLS):
+            for row in range(GRID_ROWS):
                 if not on_land(col, row) and (col, row) not in self.by_coord:
                     continue
-                nearest = min(self.territories, key=lambda t: hex_distance((col, row), (t.col, t.row)))
-                close = hex_distance((col, row), (nearest.col, nearest.row)) <= 3
-                self._regions[(col, row)] = nearest if close else None
+                nearest = min(
+                    self.territories,
+                    key=lambda t: (
+                        hex_distance((col, row), (t.col, t.row)),
+                        math.hypot((col - t.col) * 1.5, (row - t.row) * 1.732),
+                    ),
+                )
+                self._regions[(col, row)] = nearest
+
+        # Derive graph neighbors strictly from touching regions on the hex map.
+        for t in self.territories:
+            t.neighbors.clear()
+        touching_pairs: set[tuple[str, str]] = set()
+        for (col, row), t1 in self._regions.items():
+            if t1 is None:
+                continue
+            hex_nbs = (
+                [(col + 1, row), (col, row + 1), (col - 1, row), (col - 1, row - 1), (col, row - 1), (col + 1, row - 1)]
+                if col % 2 == 0
+                else [(col + 1, row + 1), (col, row + 1), (col - 1, row + 1), (col - 1, row), (col, row - 1), (col + 1, row)]
+            )
+            for nc, nr in hex_nbs:
+                t2 = self._regions.get((nc, nr))
+                if t2 is not None and t2 is not t1:
+                    if t2 not in t1.neighbors:
+                        t1.neighbors.append(t2)
+                    if t1 not in t2.neighbors:
+                        t2.neighbors.append(t1)
+                    pair = tuple(sorted((t1.name, t2.name)))
+                    touching_pairs.add(pair)  # type: ignore[arg-type]
+        if touching_pairs:
+            TERRITORY_EDGES[:] = sorted(touching_pairs)
 
     def region_of(self, col: int, row: int) -> Territory | None:
         return self._regions.get((col, row))

@@ -7,10 +7,12 @@ import math
 # Window & Grid Dimensions
 WIDTH, HEIGHT = 1860, 900
 FPS = 30
-MAP_RECT_BOUNDS = (22, 101, 930, 756)
+MAP_RECT_BOUNDS = (14, 78, 1832, 808)
+GRID_COLS, GRID_ROWS = 21, 8
+DRAGONSTONE_COORD = (18, 6)
 HEX_R = min(
-    (MAP_RECT_BOUNDS[2] - 36) / (1.5 * 14 + 2),
-    (MAP_RECT_BOUNDS[3] - 112) / (math.sqrt(3) * 8.5),
+    (MAP_RECT_BOUNDS[2] - 44) / (1.5 * (GRID_COLS - 1) + 2),
+    (MAP_RECT_BOUNDS[3] - 96) / (math.sqrt(3) * (GRID_ROWS + 0.5)),
 )
 HEX_H = math.sqrt(3) * HEX_R
 X_STEP = HEX_R * 1.5
