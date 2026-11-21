@@ -1,442 +1,500 @@
 # Game of Thrones: AI Conquest
 
-A turn-based 2.5D isometric grand-strategy game set in Westeros where three Great Houses — **House Stark**, **House Lannister**, and **House Targaryen** — compete for the **Iron Throne** through territorial expansion, economy management, stochastic combat, and emergent asynchronous diplomacy powered by **seven classical and modern AI algorithms**.
+A turn-based 2.5D isometric strategy game set in Westeros where three Great Houses — **House Stark**, **House Lannister**, and **House Targaryen** — compete for the **Iron Throne** through territorial conquest, economy management, battle tactics, and political diplomacy powered by **7 Artificial Intelligence (AI) algorithms**.
 
 ---
 
 ## Table of Contents
-1. [Overview & Victory Conditions](#overview--victory-conditions)
-2. [Critical Design Rules](#critical-design-rules)
-3. [Map, Great Houses & Starting Balance](#map-great-houses--starting-balance)
-4. [Mathematical Model of Economy & Supply](#mathematical-model-of-economy--supply)
-5. [Mathematical Model of Combat & Casualties](#mathematical-model-of-combat--casualties)
+1. [Quick Glossary (Terms & Symbols Explained)](#quick-glossary-terms--symbols-explained)
+2. [How the Game Works & How to Win](#how-the-game-works--how-to-win)
+3. [The Map, Great Houses & Starting Stats](#the-map-great-houses--starting-stats)
+4. [Economy, Recruitment & Supply Cap (With Math)](#economy-recruitment--supply-cap-with-math)
+5. [Combat & Casualties (With Math & Examples)](#combat--casualties-with-math--examples)
 6. [Diplomacy, Alliances, Trust & Betrayal](#diplomacy-alliances-trust--betrayal)
-7. [The 7 AI Algorithms & Mathematical Formulations](#the-7-ai-algorithms--mathematical-formulations)
-8. [Exact Turn & Round Pipeline](#exact-turn--round-pipeline)
-9. [Algorithm Interaction Chains](#algorithm-interaction-chains)
-10. [UI, Visuals, Dragons, Units & Audio](#ui-visuals-dragons-units--audio)
-11. [Controls & Running the Game](#controls--running-the-game)
-12. [Automated Verification Suite](#automated-verification-suite)
-13. [Project Structure & Known Approximations](#project-structure--known-approximations)
+7. [The 7 AI Algorithms Explained Simply (With Formulas)](#the-7-ai-algorithms-explained-simply-with-formulas)
+8. [Step-by-Step Turn Flow](#step-by-step-turn-flow)
+9. [How All 7 Algorithms Connect Together](#how-all-7-algorithms-connect-together)
+10. [Visuals, Dragons, Armies, Audio & Controls](#visuals-dragons-armies-audio--controls)
+11. [How to Run & Verify the Game](#how-to-run--verify-the-game)
+12. [Project File Map](#project-file-map)
 
 ---
 
-## Overview & Victory Conditions
+## Quick Glossary (Terms & Symbols Explained)
 
-The continent of Westeros is modeled as a **21 × 8 offset hex grid** partitioned into **19 named territories (holds)** via Voronoi regions (`map.py`). Each territory provides:
-- **Resource Value (`+Gold/turn`):** Added to its ruling house's base income every round.
-- **Defense Bonus (`1` to `4`):** Fortification level protecting the territory during sieges.
-- **Neutral Garrison (`2` to `10` armies):** Initial defending force when unclaimed.
-- **Adjacency Graph (`Territory.neighbors`):** Derived strictly from physically touching hex regions on the map.
+Before diving into the rules and equations, here is what every game and AI term means in plain English:
 
-A house wins when **either** victory condition is met (checked after every combat and at the end of every round):
-1. **Conquest of the Iron Throne:** Capture **King's Landing** (instant victory).
-2. **Last House Standing:** Eliminate all rival houses (0 territories remaining).
+### Game Terms
+- **Hold / Territory:** One of the 19 castles/regions on the map (e.g., *Winterfell*, *The Twins*, *King's Landing*).
+- **Hex Grid & Voronoi Region:** The map is made of hexagonal tiles (`21 × 8`). Every land tile automatically belongs to whichever castle is closest to it (called a *Voronoi region*). Two castles are considered **neighbors** if and only if their colored tile regions physically touch.
+- **Garrison:** The neutral defending soldiers guarding an unclaimed hold before any Great House captures it.
+- **Resource Value (`+Gold`):** How much extra gold a hold pays its owner at the end of every round.
+- **Defense Bonus (`1` to `4`):** How strongly fortified a hold is. Higher numbers make it harder to conquer.
+- **Supply Cap:** The maximum number of armies a house is allowed to recruit, based on how many holds it owns.
+- **Asynchronous Inbox:** A mailbox on each house (`house.inbox`) that holds incoming alliance offers. Sending an offer puts a letter in the other house's inbox so they answer on *their* next turn.
+- **Unilateral Betrayal:** Breaking an alliance on your own without asking the other house's permission.
 
-**Randomized Turn Order:** At the start of every new game, `random.shuffle(self.houses)` randomizes the round order among Stark, Lannister, and Targaryen so no house enjoys a permanent first-mover advantage to King's Landing.
-
----
-
-## Critical Design Rules
-
-1. **One military action per house per turn:** Attack a territory, Betray + strike, or Hold fortifications.
-2. **Asynchronous diplomatic proposals:** Sending an alliance proposal queues it in the receiver's inbox (`house.inbox`) and does **not** end the proposer's turn — the proposer still makes its military move that turn, and the receiver evaluates the offer on their next turn.
-3. **Unilateral betrayal:** Breaking an alliance never requires consent.
-4. **No resource or army sharing:** Allied houses remain strictly independent economically. Captured holds and plundered treasuries belong solely to the house that physically conquers them.
-5. **Eliminated-house & 3-house minimum guards:** Eliminating a house immediately dissolves any alliance it held and purges every pending proposal to or from it (`diplomacy.purge_eliminated()`). Alliances cannot be proposed or formed once fewer than 3 houses remain alive.
-6. **Clean AI separation of concerns:**
-   - **Fuzzy Logic** outputs continuous desirability scores (`0.00–1.00`) *only* — never final decisions.
-   - **MCTS** makes *all* final diplomatic decisions (using Fuzzy scores as UCT prior biases).
-   - **Greedy** serves both as a standalone target heuristic and as the deterministic rollout opponent model inside MCTS (never random rollouts).
-   - **Minimax + A\*** make *all* tactical military decisions (including deciding when to **Hold** — Hold is a combat decision, not a Fuzzy diplomacy output).
+### AI Terms
+- **BFS (Breadth-First Search):** A map search that explores outward ring by ring (1 step away, then 2 steps away) to find all holds within reach.
+- **DFS (Depth-First Search):** A map search that follows one path deep to its end before backtracking, used to scout multi-step expansion routes.
+- **Greedy Algorithm:** A simple, fast rule that always picks whichever single option looks best *right now*, without looking ahead.
+- **A\* (A-Star) Pathfinding:** A smart shortest-path algorithm that finds the cheapest route from Castle A to Castle B using both actual cost traveled so far ($g$) and an estimated remaining distance called a **heuristic** ($h$).
+- **Fuzzy Logic (Mamdani):** Instead of rigid `if/else` cutoffs (like "weak if armies < 10"), Fuzzy Logic rates inputs smoothly as degrees of **Low**, **Medium**, and **High** (e.g., "70% threatened and 60% weak") and blends rules into smooth scores from `0.00` to `1.00`. Converting those blended rules back into a single number is called **defuzzification**.
+- **Minimax with Alpha-Beta Pruning:** A game-tree search that looks 3 turns ahead, assuming *your* house tries to **maximize** its score while enemies try to **minimize** your score. **Alpha-Beta Pruning** skips branches that cannot possibly beat a move already found, making it much faster with the exact same answer.
+  - **Decomposed Minimax:** Used when no enemies are allied — evaluates each rival separately and blends the results.
+  - **Paranoid Minimax:** Used when an alliance exists — assumes the two allied enemies coordinate as one single mega-enemy against the lone house.
+- **MCTS (Monte Carlo Tree Search) & UCT:** Instead of checking every possible future move, MCTS plays out **500 fast simulated mini-games** (called **rollouts**) to see which diplomatic choice leads to the highest average score. **UCT (Upper Confidence Bound for Trees)** is the formula MCTS uses to balance trying promising options (*exploitation*) and testing less-explored options (*exploration*).
 
 ---
 
-## Map, Great Houses & Starting Balance
+## How the Game Works & How to Win
 
-| House | Starting Seat | Motto | Starting Gold | Starting Armies | Capital Resource | Capital Defense |
+### Two Game Modes
+1. **AI vs AI (Observer Mode):** All 3 houses are played by AI. Click **`ADVANCE TURN >>`** (or press `SPACE` / `ENTER`) to watch the realm unfold one turn at a time.
+2. **Human vs AI (Player Command):** You command one Great House (Stark, Lannister, or Targaryen) against two AI rivals.
+
+### How a House Wins
+A house wins immediately when **either** of these happens:
+1. **Iron Throne Victory:** Capture **King's Landing** (instant win).
+2. **Elimination Victory:** Be the last surviving house with at least 1 hold (both rival houses have 0 holds).
+
+### Core Rules
+- **Randomized Turn Order:** At the start of every new game, the order of Stark, Lannister, and Targaryen is shuffled randomly so no house always gets to move first.
+- **One Military Move Per Turn:** Each house may only Attack one hold, Betray + strike, or Hold fortifications on its turn.
+- **No Resource or Army Sharing:** Allied houses never combine armies or share gold. Whoever physically captures a hold gets that hold (and all remaining gold if they eliminate its last hold).
+- **Clean AI Separation:**
+  - **Fuzzy Logic** only produces scores (`0.00` to `1.00`) — it never makes the final choice.
+  - **MCTS** makes all final **diplomacy** choices (propose alliance, accept, reject, betray, stay solo).
+  - **Minimax + A\*** make all **military** choices (which hold to attack, or whether to **Hold**).
+
+---
+
+## The Map, Great Houses & Starting Stats
+
+Westeros has **19 named holds** across a `21 × 8` hex map (`map.py`). Each Great House starts with 1 capital hold, balanced troops, and a starting treasury (`constants.py`):
+
+| House | Starting Capital | Motto | Starting Gold | Starting Armies | Capital Income | Capital Defense |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: |
-| **House Stark** | Winterfell | *Winter Is Coming* | 60 | 14 | +9 | 3 |
-| **House Lannister** | Casterly Rock | *Hear Me Roar* | 65 | 14 | +9 | 2 |
-| **House Targaryen** | Dragonstone | *Fire and Blood* | 60 | 14 | +8 | 4 |
-| **Iron Throne** | **King's Landing** *(Neutral)* | *Objective* | — | 10 *(Garrison)* | +15 | 3 |
+| **House Stark** | Winterfell | *Winter Is Coming* | 60 | 14 | +9 / round | 3 |
+| **House Lannister** | Casterly Rock | *Hear Me Roar* | 65 | 14 | +9 / round | 2 |
+| **House Targaryen** | Dragonstone | *Fire and Blood* | 60 | 14 | +8 / round | 4 |
+| **Iron Throne** | **King's Landing** *(Neutral)* | *Win Objective* | — | 10 *(Neutral Garrison)* | +15 / round | 3 |
 
-- **Why King's Landing is `10` armies × `3` defense = `30` effective defense:**
-  - High enough to block Turn 1–7 opening rushes when houses only field `14–22` armies.
-  - Low enough that a strong mid/late-game house (`31+` armies) can storm the capital, producing a healthy mix of **Iron Throne victories (~80%)** and **Elimination victories (~20%)** rather than forcing pure attrition.
-- **Why starting values are balanced (`14` armies each, `60–65` gold):**
-  - Combined with shuffled turn order and Minimax near-tie variety, all three houses win roughly one-third of simulated AI vs AI matches (`~33% / 33% / 33%`).
+- The other 15 holds start neutral with `2–4` garrison troops and `1–3` defense.
+- Every pair of houses starts with neutral trust: **`50 / 100`**.
+
+**Why these numbers were chosen:**
+- **King's Landing** has `10` neutral soldiers × `3` defense = **`30` effective defense**. That is high enough that nobody can rush it on Turns 1–7 (when armies are ~`14–22`), yet reachable in the mid/late game (`31+` armies), creating a balanced mix of **~80% Iron Throne victories** and **~20% Elimination victories**.
+- Giving all 3 houses `14` starting armies and shuffling turn order ensures fair competition (`~33%` win rate each across simulated matches).
 
 ---
 
-## Mathematical Model of Economy & Supply
+## Economy, Recruitment & Supply Cap (With Math)
 
-At the end of every round (`main.py:_end_of_round`), each surviving house executes income collection and automatic recruitment:
+At the end of every full round (after all surviving houses have acted), each surviving house collects gold and automatically recruits new troops (`main.py:_end_of_round`).
 
-### 1. Turn Income
+### 1. Gold Income Per Round
+Every surviving house receives a base income of `10` gold plus the resource value of every hold it owns:
 
 $$
-\text{Income}(h) = B + \sum_{t \in T(h)} r(t)
+\text{Income}(h) = 10 + \sum_{t \in T(h)} r(t)
 $$
 
-where $B = 10$ (`BASE_INCOME`) and $r(t)$ is each owned territory's `resource_value`.
+**What each symbol means:**
+- $h$ = a Great House (Stark, Lannister, or Targaryen).
+- $T(h)$ = the set of all holds currently owned by house $h$.
+- $r(t)$ = the gold income (`resource_value`) of hold $t$.
 
-### 2. Army Supply Cap & Recruitment
+*Example:* At Turn 1, Stark owns only Winterfell ($r = 9$), so Stark earns $10 + 9 = 19$ gold at the end of Round 1.
+
+### 2. Army Supply Cap & Automatic Recruitment
+To prevent an infinite-resource exploit (sitting on 1 castle pressing `HOLD TURN` forever until you have 100 troops), every house has an **Army Supply Cap** based on how many holds it owns:
 
 $$
 \text{SupplyCap}(h) = 12 + 6 \cdot |T(h)|
 $$
 
+Each round, a house automatically buys as many new troops as allowed by **three limits** (whichever is smallest):
+
 $$
-\text{Recruits}(h) = \min\left(R_{\max}, \ \max\left(0, \ \left\lfloor \frac{\text{Gold}(h) - G_{\text{res}}}{C_{\text{army}}} \right\rfloor\right), \ \max\left(0, \ \text{SupplyCap}(h) - A(h)\right)\right)
+\text{Recruits}(h) = \min\left(3, \ \max\left(0, \ \left\lfloor \frac{\text{Gold}(h) - 15}{5} \right\rfloor\right), \ \max\left(0, \ \text{SupplyCap}(h) - A(h)\right)\right)
 $$
 
-with constants (`constants.py`):
-- $R_{\max} = 3$ armies/round (`MAX_RECRUITS_PER_TURN`)
-- $G_{\text{res}} = 15$ Gold treasury reserve
-- $C_{\text{army}} = 5$ Gold per army (`ARMY_COST`)
+**What each symbol means:**
+- $|T(h)|$ = number of holds owned by house $h$.
+- $A(h)$ = current number of armies house $h$ has.
+- $\text{Gold}(h)$ = current gold treasury of house $h$.
+- `3` = maximum troops any house can recruit in a single round (`MAX_RECRUITS_PER_TURN`).
+- `15` = minimum gold reserve a house always keeps in its treasury.
+- `5` = gold cost of 1 army (`ARMY_COST`).
+- $\lfloor x \rfloor$ = round down to a whole number (cannot recruit half a soldier).
 
-**Mathematical Rationale (Preventing the Infinite-Hold Exploit):**
-- Without `SupplyCap`, a player could repeatedly click `HOLD TURN` on a single hold forever, accumulating unlimited armies to one-shot King's Landing without ever fighting.
-- With $\text{SupplyCap} = 12 + 6|T|$, a 1-hold house caps at **18 armies** (well below King's Landing's `30` defense), forcing territorial expansion to field armies large enough to take the Iron Throne (at least 3–4 holds $\Rightarrow 30\text{–}36$ supply cap).
-- **MCTS Rollout Parity:** The exact same reserve (`15G`), per-turn limit (`3`), and supply cap (`12 + 6|T|`) are enforced inside MCTS's `_Sim.economy()` so simulated diplomacy futures match live game physics.
+*Why this matters:* With 1 hold, $\text{SupplyCap} = 12 + 6(1) = 18$ armies — far below King's Landing's `30` defense. A house **must** conquer at least 3–4 holds ($\text{SupplyCap} = 30\text{–}36$) to build an army strong enough to take the Iron Throne.
 
 ---
 
-## Mathematical Model of Combat & Casualties
+## Combat & Casualties (With Math & Examples)
 
 All battles are resolved in [`combat.py`](combat.py).
 
-### 1. Effective Defense Formula
+### 1. Effective Defense (Neutral Fortresses vs. Great Houses)
+How strongly a territory defends depends on whether it is a small neutral garrison or a rival Great House:
 
 $$
 \text{EffectiveDefense}(d, b) = \begin{cases}
-d \cdot b & \text{if territory is Neutral (garrison } d \in [2, 10]\text{)} \\
-d \cdot (1 + 0.05 \cdot b) & \text{if territory is owned by a rival Great House}
+d \cdot b & \text{if the hold is Neutral} \\
+d \cdot (1 + 0.05 \cdot b) & \text{if the hold belongs to a rival Great House}
 \end{cases}
 $$
 
-**Mathematical Rationale (Preventing Rival Standoffs):**
-- Neutral garrisons are small static forces (`2–10` armies), so multiplying by full `defense_bonus` (`1×–4×`) creates realistic fortress thresholds (e.g., King's Landing $= 10 \times 3 = 30$).
-- Great Houses defend with their **entire army pool** (`14–40` armies). Multiplying a full rival army pool by `2×–4×` made house-vs-house attacks mathematically unwinnable in Minimax, freezing all 3 houses into passive `Hold` standoffs.
-- Scaling rival Great House fortifications to $(1 + 0.05b)$ (`+5%` to `+20%`) preserves the defensive edge of fortified holds while ensuring any house with a `10–15%` troop lead actively invades its neighbor.
+**What each symbol means:**
+- $d$ = defending army count (the neutral garrison size, or the rival house's army pool).
+- $b$ = the territory's `defense_bonus` (`1` to `4`).
 
-### 2. Stochastic Combat Resolution
+**Why two different formulas?**
+- Neutral garrisons are tiny (`2–10` troops), so multiplying by full `defense_bonus` makes castles meaningfully tough (e.g., King's Landing $= 10 \times 3 = 30$).
+- Rival Great Houses defend with their **entire army pool** (`14–40` troops). If you multiplied a rival's 25-troop army by `3`, it would have `75` defense — making rival wars impossible and causing all 3 houses to sit still! Using $+5\%$ per defense level (`1.05×` to `1.20×`) keeps fortifications valuable while letting houses with a `10–15%` troop lead actively invade neighbors.
+
+### 2. Battle Outcome & Random Variance (`±20%`)
+Every battle rolls a random battlefield luck factor between `0.80` (`-20%`) and `1.20` (`+20%`) for each side:
 
 $$
 P_{\text{att}} = A_{\text{att}} \cdot U_{\text{att}}, \qquad P_{\text{def}} = \text{EffectiveDefense}(A_{\text{def}}, b) \cdot U_{\text{def}}
 $$
 
-where $U_{\text{att}}, U_{\text{def}} \stackrel{\text{i.i.d.}}{\sim} \text{Uniform}(0.80, 1.20)$.
+**What each symbol means:**
+- $A_{\text{att}}$ = attacking house's army count.
+- $A_{\text{def}}$ = defending garrison or rival house's army count.
+- $U_{\text{att}}, U_{\text{def}}$ = two independent random decimal numbers chosen uniformly between `0.80` and `1.20`.
+- $P_{\text{att}}, P_{\text{def}}$ = final battle power of attacker and defender for that clash.
 
-| Outcome | Condition | Attacker Losses | Defender Losses | Territory & Treasury |
+| Result | Condition | Attacker Loses | Defender Loses | What Happens |
 | :--- | :---: | :---: | :---: | :--- |
-| **Attacker Wins** | $P_{\text{att}} > P_{\text{def}}$ | $\lfloor 0.50 \cdot A_{\text{def}} \rfloor$ | $\lfloor 0.80 \cdot A_{\text{def}} \rfloor$ | Territory transfers to attacker. If defender has `0` holds left, attacker plunders all remaining defender gold. |
-| **Defender Holds** | $P_{\text{att}} \le P_{\text{def}}$ | $\lfloor 0.60 \cdot A_{\text{att}} \rfloor$ | $\lfloor 0.20 \cdot A_{\text{def}} \rfloor$ | Territory remains with defender. |
+| **Attacker Wins** | $P_{\text{att}} > P_{\text{def}}$ | $\lfloor 0.50 \cdot A_{\text{def}} \rfloor$ | $\lfloor 0.80 \cdot A_{\text{def}} \rfloor$ | Attacker takes the hold. If defender now has `0` holds, attacker takes all defender's gold. |
+| **Defender Holds** | $P_{\text{att}} \le P_{\text{def}}$ | $\lfloor 0.60 \cdot A_{\text{att}} \rfloor$ | $\lfloor 0.20 \cdot A_{\text{def}} \rfloor$ | Attacker is repelled; defender keeps the hold. |
 
-Both sides' surviving armies are clamped to $\max(1, A - \text{losses})$.
+Both sides' surviving armies never drop below `1` ($\max(1, \text{armies} - \text{losses})$).
 
-### 3. Win-Probability Thresholds
-
-- **Expected-Value Threshold (>50% win odds, used by deterministic Minimax):**
-
-$$
-A_{\text{att}} > \text{EffectiveDefense}(A_{\text{def}}, b)
-$$
-
-  Because $\mathbb{E}[U] = 1.0$ and the distribution is symmetric, beating `EffectiveDefense` means strictly better than 50/50 odds.
-
-- **100% Guaranteed Victory Threshold (worst-case RNG):**
+### 3. Understanding Win Odds (Why a Good Move Can Still Be Repelled)
+- **Better than 50/50 odds:** Whenever $A_{\text{att}} > \text{EffectiveDefense}$, the attacker is favored to win.
+- **100% Guaranteed Win (even on worst possible luck):** Even if the attacker rolls the lowest possible `0.80` and the defender rolls the highest possible `1.20`, the attacker still wins if:
 
 $$
 0.80 \cdot A_{\text{att}} > 1.20 \cdot \text{EffectiveDefense} \iff A_{\text{att}} > 1.50 \cdot \text{EffectiveDefense}
 $$
 
-  *(Example: Neutral King's Landing has effective defense `30`, so `31+` armies give >50% odds and `46+` armies guarantee capture regardless of dice rolls.)*
+*Example (King's Landing, Effective Defense = 30):*
+- Attacking with **31 armies** gives slightly over **50% chance** to capture the Iron Throne (can still be repelled on an unlucky roll).
+- Attacking with **46+ armies** ($46 > 1.5 \times 30 = 45$) **guarantees** capture 100% of the time.
 
 ---
 
 ## Diplomacy, Alliances, Trust & Betrayal
 
-Managed by [`diplomacy.py`](diplomacy.py) and each house's `inbox` (`house.py`).
+Managed by [`diplomacy.py`](diplomacy.py) and `house.inbox` (`house.py`).
 
-### Pairwise Trust Matrix
-- Every pair of houses starts at $\text{Trust}(h_1, h_2) = 50.0 \in [0, 100]$.
-- **Alliance Kept (end of round):** $\text{Trust} \leftarrow \min(100, \text{Trust} + 5)$ (`ALLY_BONUS = +5`).
-- **Betrayal:** $\text{Trust} \leftarrow \max(0, \text{Trust} - 30)$ (`BETRAYAL_PENALTY = -30`).
+### Trust Score (`0` to `100`)
+- Every pair of houses starts at **Trust = `50`**.
+- **Alliance Kept:** Each full round an alliance survives adds **`+5` trust** (up to `100`).
+- **Betrayal:** Betraying an ally subtracts **`-30` trust** (down to `0`).
 
-### What an Active Alliance Does
-1. **Strict Non-Aggression:** Active allies are placed in `my_forbidden` inside Minimax, so an allied AI **never** attacks its ally without first choosing MCTS betrayal (even if completely boxed in by ally holds, it chooses `Hold`).
-2. **Coordinated Targeting:** Both allies focus their separate turns on neutral holds and the 3rd house.
-3. **Immediate Paranoid Mode Sync:** `form_alliance()` immediately flips **all surviving houses** (both allies *and* the lone 3rd house) to `PARANOID` Minimax; `dissolve_alliance()` resets all houses to `DECOMPOSED` once no alliance remains.
-4. **Trust Growth:** `+5` bilateral trust each round the pact holds.
-5. **No Resource/Army Sharing:** Economies and conquests remain strictly separate.
+### What an Active Alliance Actually Does
+1. **Strict Non-Aggression:** An allied AI puts its ally on its forbidden list and **will never attack its ally** unless MCTS explicitly decides to betray first (even if boxed in with no other targets, it will choose `Hold`).
+2. **Focus Against the 3rd House:** Both allies attack neutral holds and the 3rd house, hitting that 3rd house twice per round without worrying about their shared border.
+3. **Switches All Houses to Paranoid Minimax:** The instant an alliance forms, all surviving houses (both allies *and* the lone 3rd house) switch from `DECOMPOSED` to `PARANOID` Minimax. When the alliance ends, all houses return to `DECOMPOSED`.
+4. **Builds Trust:** `+5` trust each round.
+5. **No Shared Gold or Armies:** Each house still fights with its own army on its own turn and keeps what it conquers.
 
-### Three Betrayal Paths (All Apply `-30` Trust & Raven's Log Entry)
-1. **Explicit Betrayal:** AI MCTS chooses `"betray"`, or Human clicks **`BETRAY <ALLY>`** — dissolves the pact and launches an immediate strike on the same turn.
-2. **Direct Attack on Ally (Human):** Clicking an allied territory in `_execute_attack()` automatically triggers `break_alliance()` before combat resolves.
-3. **Automatic Betrayal on Ally Switch:** Accepting an alliance with House C while already allied with House B inside `form_alliance()` automatically betrays House B (`-30` trust and logs `"betrayed B to ally with C"`).
+### How an Alliance Forms (2-Turn Handshake)
+- **Turn N (Proposer):** Sends a proposal to the target's inbox (`house.inbox`), then still makes its normal military move that turn.
+- **Turn N+1 (Receiver):** Evaluates the offer (AI uses Context B Fuzzy + MCTS; Human clicks `ACCEPT` or `REJECT`).
 
-### Post-Elimination Hygiene
-When any house reaches `0` holds, `diplomacy.purge_eliminated(defender)` immediately dissolves any alliance involving it and clears all pending proposals sent **to or from** it across every inbox. Once `< 3` houses remain, new proposals and alliances are disabled.
+### All 3 Ways Betrayal Happens (All Apply `-30` Trust & Log It)
+1. **Explicit Betrayal:** AI MCTS chooses `"betray"`, or Human clicks `BETRAY <ALLY>` — breaks the pact and strikes the former ally immediately.
+2. **Direct Attack (Human):** Clicking directly on your ally's hold automatically breaks the alliance as a betrayal right before combat begins.
+3. **Switching Allies Automatically:** Accepting a new alliance with House C while already allied with House B automatically counts as betraying House B (`-30` trust and logs `"betrayed B to ally with C"`).
+
+### Eliminated-House Guard
+When a house loses its last hold (`0` holds), `diplomacy.purge_eliminated()` immediately cancels any pact it was in and deletes every pending proposal sent **to or from** it. Once only 2 houses remain alive, alliances are disabled (the last 2 rivals must fight for the throne).
 
 ---
 
-## The 7 AI Algorithms & Mathematical Formulations
+## The 7 AI Algorithms Explained Simply (With Formulas)
 
 ### 1. Breadth-First Search (BFS) — [`algorithms/bfs.py`](algorithms/bfs.py)
-- `get_reachable(game_map, start, n_steps=2) -> set[Territory]`
-- Unweighted shortest-hop graph traversal computing all holds reachable within `n` marches. Persisted each turn on `house.reachable_holds`.
+- **Plain English:** Starts at a house's capital and checks all holds 1 step away, then 2 steps away, building a set of everything within quick striking range.
+- **Function:** `get_reachable(game_map, start, n_steps=2)` — saved on `house.reachable_holds` every turn.
 
 ### 2. Depth-First Search (DFS) — [`algorithms/dfs.py`](algorithms/dfs.py)
-- `get_expansion_paths(game_map, start, depth_limit=3) -> list[list[Territory]]`
-- Cycle-free backtracking search cataloging all simple corridors up to depth `3` into neutral or weakly defended (`defense_bonus < 2`) regions. Persisted each turn on `house.expansion_paths`.
+- **Plain English:** Explores chains of up to 3 connected holds without revisiting any hold, scouting deep expansion corridors into neutral or weakly fortified (`defense_bonus < 2`) regions.
+- **Function:** `get_expansion_paths(game_map, start, depth_limit=3)` — saved on `house.expansion_paths` every turn.
 
-### 3. Greedy Heuristic Search — [`algorithms/greedy.py`](algorithms/greedy.py)
-- `greedy_pick(candidates)` and `get_greedy_move(house, game_map, enemies)`
-- Selection rule:
-
-$$
-t^{\ast} = \arg\max_{t \in \text{Candidates}} \bigl(r(t) - b(t), \ \mathbb{I}[t = \text{King's Landing}]\bigr)
-$$
-
-- **Dual Role:** Standalone tactical baseline AND the deterministic rollout policy inside MCTS (`algorithms/mcts.py` imports `greedy_pick` directly so rollouts never play randomly).
-
-### 4. A\* Pathfinding — [`algorithms/astar.py`](algorithms/astar.py)
-- `get_path(game_map, start, goal) -> list[Territory]`
-- Minimizes total fortification risk along multi-hop routes:
+### 3. Greedy Search — [`algorithms/greedy.py`](algorithms/greedy.py)
+- **Plain English:** Looks at all adjacent attackable holds and immediately picks the one with the highest net payoff (`gold income minus defense difficulty`), favoring King's Landing on ties.
+- **Formula:**
 
 $$
-f(n) = g(n) + h(n), \qquad g(n) = \sum_{t \in \text{path}(s \to n) \setminus \{s\}} b(t), \qquad h(n) = d_{\text{hex}}(n, \text{goal})
+t^{\ast} = \arg\max_{t \in \text{Candidates}} \bigl(r(t) - b(t)\bigr)
 $$
 
-  where $d_{\text{hex}}$ is cube-coordinate hex distance (`map.py:hex_distance`).
-- **Dual Role:**
-  1. **AI Minimax Guidance:** `_throne_path_costs()` caches the A\* defense cost from every territory to `KING'S LANDING`, rewarding AI moves that advance along the lowest-defense A\* corridor.
-  2. **Human Multi-Turn Routing:** Clicking a distant non-adjacent territory plots the A\* path and automatically marches 1 step across the first border crossing.
+  **What each symbol means:**
+  - $t^{\ast}$ = the chosen best territory.
+  - $\text{Candidates}$ = all adjacent non-owned, non-ally holds.
+  - $r(t)$ = gold income (`resource_value`) of hold $t$.
+  - $b(t)$ = fortification level (`defense_bonus`) of hold $t$.
+- **Why it matters:** Besides working standalone, `greedy_pick()` is used inside **MCTS rollouts** so every simulated future house plays smartly instead of making random moves.
+
+### 4. A\* (A-Star) Pathfinding — [`algorithms/astar.py`](algorithms/astar.py)
+- **Plain English:** Finds the **safest (lowest total defense) multi-turn route** between any two castles on the map.
+- **Formula:**
+
+$$
+f(n) = g(n) + h(n), \qquad g(n) = \sum_{t \in \text{steps taken}} b(t), \qquad h(n) = d_{\text{hex}}(n, \text{goal})
+$$
+
+  **What each symbol means:**
+  - $n$ = a territory currently being explored.
+  - $g(n)$ = total `defense_bonus` accumulated along the route from start to $n$.
+  - $h(n)$ = cube-coordinate hex distance (`map.py:hex_distance`) from $n$ to the goal castle (an estimate of remaining steps).
+  - $f(n)$ = total estimated route cost; A\* always expands the lowest $f(n)$ first.
+- **Where A\* is used in the game:**
+  1. **Inside AI Minimax:** Minimax computes the A\* defense cost from every hold to `KING'S LANDING` and rewards AI moves that shorten that safest corridor to the Iron Throne.
+  2. **For Human Clicks:** Clicking a distant (non-adjacent) castle automatically runs A\* and marches 1 border step along the safest route toward it.
 
 ### 5. Mamdani Fuzzy Logic — [`algorithms/fuzzy_diplomacy.py`](algorithms/fuzzy_diplomacy.py)
-- `evaluate_diplomacy(enemy_strength, own_weakness, trust_history) -> dict[str, float]`
-- **Triangular Membership Functions (`trimf`) over $[0, 100]$:**
-
-$$
-\text{LOW} = (0, 0, 60), \qquad \text{MEDIUM} = (20, 50, 80), \qquad \text{HIGH} = (40, 100, 100)
-$$
-
-- **6 Mamdani Inference Rules** (min-implication, max-aggregation, centroid defuzzification; `scikit-fuzzy` with pure-NumPy fallback):
-  1. $\text{Enemy HIGH} \land \text{Weakness HIGH} \Rightarrow \text{Alliance HIGH}$
-  2. $\text{Trust LOW} \land \text{Enemy MEDIUM} \Rightarrow \text{Alliance LOW}$
-  3. $\text{Weakness LOW} \land \text{Enemy LOW} \Rightarrow \text{Betrayal HIGH}$
-  4. $\text{Weakness LOW} \land \text{Trust HIGH} \Rightarrow \text{Solo HIGH}$
-  5. $\text{Enemy HIGH} \land \text{Trust HIGH} \Rightarrow \text{Alliance MEDIUM}$
-  6. $\text{Trust LOW} \Rightarrow \text{Betrayal MEDIUM}$
-- **Military Scaling:**
-
-$$
-S_{\text{scaled}}(h) = \text{clip}\left(2.5 \cdot \left(A(h) + \sum_{t \in T(h)} b(t)\right), \ 0, \ 100\right), \qquad \text{Weakness}(h) = 100 - S_{\text{scaled}}(h)
-$$
-
+- **Plain English:** Measures how strongly a house *feels* about allying, betraying, or fighting solo — using smooth overlapping concepts (**Low**, **Medium**, **High**) instead of brittle cutoffs.
+- **3 Inputs (all scaled from `0` to `100`):**
+  1. `enemy_strength` — how strong the threat is.
+  2. `own_weakness` — how vulnerable this house is (`100` minus its own scaled military strength, where raw military strength $= \text{armies} + \sum \text{defense bonus}$, scaled by $\times 2.5$ and capped at `100`).
+  3. `trust_history` — bilateral trust score (`0` to `100`).
+- **Triangular Membership Curves (`trimf`) over `0..100`:**
+  - **LOW:** peaks at `0`, drops to zero at `60` — triangle $(0, 0, 60)$.
+  - **MEDIUM:** rises from `20`, peaks at `50`, drops to zero at `80` — triangle $(20, 50, 80)$.
+  - **HIGH:** rises from `40`, peaks at `100` — triangle $(40, 100, 100)$.
+- **6 Linguistic Rules:**
+  1. IF enemy is **HIGH** AND own weakness is **HIGH** → Alliance is **HIGH** *(weak house facing a giant wants an ally)*.
+  2. IF trust is **LOW** AND enemy is **MEDIUM** → Alliance is **LOW** *(don't trust an unreliable partner)*.
+  3. IF own weakness is **LOW** AND enemy is **LOW** → Betrayal is **HIGH** *(dominant house can stab its ally and win)*.
+  4. IF own weakness is **LOW** AND trust is **HIGH** → Solo is **HIGH** *(strong enough to win alone without betraying)*.
+  5. IF enemy is **HIGH** AND trust is **HIGH** → Alliance is **MEDIUM** *(trusted ally helps against strong threat)*.
+  6. IF trust is **LOW** → Betrayal is **MEDIUM** *(low trust breeds paranoia)*.
 - **Two Contexts:**
-  - **Context A (Own Diplomacy):** `enemy_strength` = combined surviving rivals; `trust` = mean trust toward rivals.
-  - **Context B (Incoming Proposal):** `enemy_strength` = **3rd (common enemy) house's strength** when alive (so two weaker houses accurately perceive the dominant 3rd house's threat and form coalitions); `trust` = trust toward the proposer.
-- Outputs `{"alliance", "betrayal", "solo"}` in $[0, 1]$ as prior biases for MCTS — **never** makes final decisions directly.
+  - **Context A (Own Diplomacy):** `enemy_strength` = combined enemies; `trust` = average trust toward rivals.
+  - **Context B (Incoming Proposal):** `enemy_strength` = the **3rd (common enemy) house's strength** (so two weaker houses recognize their shared giant enemy and accept an alliance against it); `trust` = trust toward the sender.
+- **Output:** Smooth scores `{"alliance", "betrayal", "solo"}` between `0.00` and `1.00`, passed to MCTS as biases (Fuzzy Logic never makes the final yes/no choice by itself).
 
 ### 6. Minimax with Alpha-Beta Pruning — [`algorithms/minimax.py`](algorithms/minimax.py)
-- `get_move_scores(...) -> dict[str | None, float]` and `get_best_move(...) -> Territory | None`
-- Depth limit: `MINIMAX_DEPTH = 3`, with Alpha-Beta pruning and expected-value combat (`U = 1.0`).
-- **Board Evaluation Function (`_evaluate_state`):**
+- **Plain English:** Looks **3 moves ahead** (`MINIMAX_DEPTH = 3`) to choose the best adjacent hold to attack — or **`Hold`** (`None`) if every attack would lose more than it gains. To stay fast, it uses expected-value combat (`luck = 1.0`, meaning any attack with `armies > EffectiveDefense` is predicted to win).
+- **Board Score Formula (`_evaluate_state`):**
 
 $$
-V(s, h) = 2 \sum_{t \in T(h)} \bigl(r(t) + b(t)\bigr) + 1.5 A(h) + 0.5 G(h) + 500 \mathbb{I}[\text{KL} \in T(h)] + 1.5 \max\bigl(0, \ 12 - C_{\text{throne}}(h)\bigr) - \sum_{e \in E} \left(\sum_{t \in T(e)} r(t) + 1.5 A(e)\right)
+V(s, h) = 2 \sum_{t \in T(h)} \bigl(r(t) + b(t)\bigr) + 1.5 A(h) + 0.5 G(h) + 500 I_{\text{KL}}(h) + 1.5 \max\bigl(0, \ 12 - C_{\text{throne}}(h)\bigr) - \sum_{e \in E} \left(\sum_{t \in T(e)} r(t) + 1.5 A(e)\right)
 $$
 
-  where $C_{\text{throne}}(h) = \min_{t \in T(h)} \text{cost}_{\text{Astar}}(t \to \text{King's Landing})$.
-- **Two Modes:**
-  - **Decomposed Mode** (no active alliance): weighted sum of independent 1v1 Minimax searches:
+  **What every symbol means:**
+  - $V(s, h)$ = overall score of board state $s$ from house $h$'s point of view (higher is better).
+  - $T(h)$ = holds owned by house $h$; $r(t)$ = hold's gold value; $b(t)$ = hold's defense bonus.
+  - $A(h)$ = house $h$'s army count; $G(h)$ = house $h$'s gold treasury.
+  - $I_{\text{KL}}(h)$ = `1` if house $h$ owns **King's Landing**, otherwise `0` (so capturing King's Landing adds a massive `+500` score).
+  - $C_{\text{throne}}(h)$ = the shortest **A\* defense-cost path** from house $h$'s closest hold to King's Landing (moving closer to King's Landing increases this bonus!).
+  - $E$ = the list of enemy houses; $T(e)$ and $A(e)$ = each enemy's holds and armies (subtracted so weakening enemies raises your score).
+- **Two Search Modes:**
+  - **Decomposed Mode (when no alliance exists):** Evaluates two separate 1v1 searches (Me vs. Enemy 1, Me vs. Enemy 2) and combines them weighted by how strong each enemy is:
 
 $$
-V_{\text{decomp}}(m) = \sum_{e \in E} \frac{S(e)}{\sum_{e' \in E} S(e')} \cdot \text{Minimax}_{1\text{v}1}(h \text{ vs. } e; \ m)
+V_{\text{decomp}}(m) = \sum_{e \in E} \frac{S(e)}{S_{\text{total}}} \cdot \text{Minimax}_{1\text{v}1}(h \text{ vs. } e; \ m)
 $$
 
-  - **Paranoid Mode** (any active alliance): merges opposing houses into a single minimizing coalition that never attacks itself.
-- **Candidate Pruning (`_moves`):** Excludes owned holds, active ally holds (`my_forbidden`), rival House holds when $A(h) < 5$ (`MIN_ATTACK_ARMIES`), and `KING'S LANDING` when $A(h) < \text{EffectiveDefense}(\text{KL})$.
-- **Opening Variety (`_pick`):** Randomly breaks ties among top attacks within `2.0` points of optimal so AI matches explore diverse borders.
-- **Human Hover Preview:** `get_move_scores()` computes scores for every valid adjacent hold plus `None` (`Hold`) and displays `Minimax: +XX.X · BEST` vs. `Hold` directly inside the map hover tooltip.
+    where $m$ is a candidate move, $S(e)$ is enemy $e$'s military strength, and $S_{\text{total}}$ is the sum of all enemy strengths.
+  - **Paranoid Mode (when an alliance exists):** Merges opposing houses into one combined enemy team that never attacks itself and always picks the reply that hurts house $h$ the most.
+- **Smart Safety Filters & Variety:**
+  - Never attacks own holds or active ally holds.
+  - Won't attack a rival Great House if below `5` armies (`MIN_ATTACK_ARMIES`).
+  - Won't rush `KING'S LANDING` unless `armies >= EffectiveDefense` (`30` when neutral).
+  - Randomly picks among top attacks within `2.0` score points of the best move so every AI game plays out uniquely instead of repeating the exact same map.
+- **Human Hover Preview:** During your turn, hovering over any valid adjacent hold displays its exact Minimax score (`Minimax: +86.8 · BEST`) compared directly against `Hold`.
 
-### 7. Monte Carlo Tree Search (UCT) — [`algorithms/mcts.py`](algorithms/mcts.py)
-- Context A: `get_diplomacy_decision(...) -> ("propose_alliance" | "betray" | "solo", target)`
-- Context B: `get_proposal_response(...) -> "accept" | "reject"`
-- Hyperparameters: `MCTS_ITER = 500`, `MCTS_ROLLOUT_DEPTH = 10`, `UCT_C = 1.414`, `REWARD_SCALE = 100.0`.
-- **Fuzzy-Biased UCT Formula:**
-
-$$
-\text{UCT}(a) = \frac{Q(a)}{N(a)} + c\sqrt{\frac{\ln N_{\text{parent}}}{N(a)}} + \text{FuzzyBias}(a), \qquad c = 1.414
-$$
-
-  - Context A biases: `propose_alliance` $\leftarrow$ `alliance`, `betray` $\leftarrow$ `betrayal`, `solo` $\leftarrow$ `solo`. Partner choice maximizes `(trust, -military_strength)`, preferring the weaker rival on equal trust so two weaker houses unite against the leader.
-  - Context B biases: `accept` $\leftarrow$ `alliance`, `reject` $\leftarrow \max(\text{betrayal}, \text{solo})$.
-- **Stochastic Rollouts (`_Sim` + `_rollout`):**
-  - All houses act with `greedy_pick()` under full live combat RNG (`Uniform(0.80, 1.20)`), `effective_defense`, `>= 1` army floor, King's Landing threshold guard, and exact supply-capped economy.
-  - **Per-Turn Alliance Breakdown:** For each rollout step $k > 0$, an active pact breaks with probability
+### 7. Monte Carlo Tree Search / UCT — [`algorithms/mcts.py`](algorithms/mcts.py)
+- **Plain English:** Makes every AI **diplomatic decision** by running **500 fast 10-turn simulated futures** (`MCTS_ITER = 500`, `MCTS_ROLLOUT_DEPTH = 10`) where all houses play using the Greedy policy and real `±20%` combat rolls.
+  - **Context A choices:** `propose_alliance`, `betray`, or `solo`. (When proposing, picks the highest-trust rival, breaking ties toward the *weaker* rival so two weaker houses team up against the leader.)
+  - **Context B choices (answering an inbox offer):** `accept` or `reject`.
+- **UCT Selection Formula (how MCTS picks which option to simulate next):**
 
 $$
-p_{\text{break}} = 0.25 \cdot \left(1 - \frac{\text{trust}}{100}\right)
+\text{UCT}(a) = \frac{Q(a)}{N(a)} + 1.414 \sqrt{\frac{\ln N_{\text{parent}}}{N(a)}} + \text{FuzzyBias}(a)
 $$
 
-    adding $+10.0$ risk penalty if it collapses (betraying first incurs $+30.0$ risk).
-- **Prioritized Rollout Reward:**
+  **What every symbol means:**
+  - $a$ = a diplomatic action being tested (e.g., `accept` or `reject`).
+  - $Q(a)$ = total reward accumulated across all simulations that tried action $a$.
+  - $N(a)$ = number of times action $a$ has been simulated so far (so $Q(a) / N(a)$ is its average score).
+  - $N_{\text{parent}}$ = total simulations run across all actions so far.
+  - `1.414` = exploration constant (`UCT_C`, roughly $\sqrt{2}$), which encourages trying less-tested actions.
+  - $\text{FuzzyBias}(a)$ = the score (`0.00–1.00`) from Fuzzy Logic (`propose_alliance` / `accept` use `alliance`; `betray` uses `betrayal`; `solo` uses `solo`; `reject` uses $\max(\text{betrayal}, \text{solo})$).
+- **Alliance Breakdown in Simulations:** After the first simulated turn, an active alliance has a per-turn chance to collapse based on how low trust is:
+
+$$
+p_{\text{break}} = 0.25 \cdot \left(1 - \frac{\text{Trust}}{100}\right)
+$$
+
+  *(Example: at `Trust = 50`, there is a `12.5%` chance per simulated turn that the alliance falls apart, adding `+10` risk penalty; betraying first immediately adds `+30` risk penalty.)*
+- **Simulation Score (Reward at the end of a 10-turn rollout):**
 
 $$
 R = \begin{cases}
-\dfrac{1000}{100} = 10.0 & \text{if Iron Throne captured by self} \\
-0.0 & \text{if self eliminated} \\
-\dfrac{\max(0, \ 0.5 T_{\text{val}} + 0.3 S_{\text{mil}} + 0.2 G_{\text{val}} - 0.4 \text{Risk})}{100} & \text{otherwise (halved if rival takes Throne)}
+10.0 & \text{if self captures King's Landing (1000 / 100)} \\
+0.0 & \text{if self is eliminated} \\
+\dfrac{\max(0, \ 0.5 T_{\text{val}} + 0.3 S_{\text{mil}} + 0.2 G_{\text{val}} - 0.4 \text{Risk})}{100} & \text{otherwise (halved if a rival takes King's Landing)}
 \end{cases}
 $$
 
+  **What every symbol means:**
+  - $T_{\text{val}}$ = total value of holds owned by self (`resource_value + defense_bonus`).
+  - $S_{\text{mil}}$ = self's military strength (`armies + sum of owned defense bonuses`).
+  - $G_{\text{val}}$ = self's gold treasury.
+  - $\text{Risk}$ = accumulated alliance-breakdown or betrayal risk penalty.
+  - Dividing by `100` (`REWARD_SCALE`) keeps simulation rewards on the same `~0–1` scale as the Fuzzy Bias and exploration term.
+
 ---
 
-## Exact Turn & Round Pipeline
+## Step-by-Step Turn Flow
 
-Each round steps through all surviving houses in the shuffled turn order:
+Every round runs through all surviving houses in the shuffled turn order (`main.py`):
 
-1. **If `house.inbox` has a pending proposal (from a surviving proposer):**
-   - `Fuzzy Logic (Context B)` $\rightarrow$ `MCTS (Context B)` $\rightarrow$ `Accept` (form alliance, switch all houses to `PARANOID`) or `Reject`
-   - `BFS / DFS` (update `reachable_holds` & `expansion_paths`)
-   - `Minimax` (Alpha-Beta + A\* throne-corridor bonus) $\rightarrow$ `A*` route $\rightarrow$ `Combat`
-2. **Else (no pending proposal):**
-   - `BFS / DFS` $\rightarrow$ `Fuzzy Logic (Context A)` $\rightarrow$ `MCTS (Context A)`
-   - If `propose_alliance`: queue in `target.inbox` (proposer still attacks/holds this turn)
-   - If `betray`: break pact (`-30` trust), strike former ally immediately via Minimax
-   - `Minimax` $\rightarrow$ `A*` route $\rightarrow$ `Combat`
+1. **If the house has a pending alliance offer in `house.inbox`:**
+   - Run **Fuzzy Logic (Context B)** using the 3rd house's threat and trust toward the sender.
+   - Run **MCTS (Context B)** to choose `accept` or `reject`.
+   - If accepted: alliance activates and all surviving houses switch to `PARANOID` Minimax.
+   - Run **BFS / DFS** reachability update → **Minimax** target choice → **A\*** route → **Combat**.
+2. **If `house.inbox` is empty:**
+   - Run **BFS / DFS** reachability update.
+   - Run **Fuzzy Logic (Context A)** → **MCTS (Context A)** to choose `propose_alliance`, `betray`, or `solo`.
+   - If `propose_alliance`: send offer to target's inbox (proposer still gets its military move this turn!).
+   - If `betray`: break alliance (`-30` trust) and immediately attack the former ally.
+   - Run **Minimax** target choice → **A\*** route → **Combat**.
 3. **End of Round (after all houses act):**
-   - Collect income $\rightarrow$ Recruit armies (respecting `15G` reserve, `MAX_RECRUITS_PER_TURN = 3`, and `SupplyCap = 12 + 6|T|`) $\rightarrow$ Add `+5` trust to surviving alliances $\rightarrow$ Refresh Context A Fuzzy scores $\rightarrow$ Check win conditions $\rightarrow$ Increment Turn.
+   - Collect gold income → Recruit troops (capped by `15G` reserve, `3/turn`, and `SupplyCap`) → Add `+5` trust to surviving alliances → Refresh Fuzzy HUD scores → Check win conditions → Advance to next turn.
 
 ---
 
-## Algorithm Interaction Chains
+## How All 7 Algorithms Connect Together
 
 ```text
-Chain 1 (Own Diplomacy):
-  Fuzzy(Context A) ──► UCT bias ──► MCTS(Context A, Greedy rollouts)
-                                      ├── propose_alliance ──► target.inbox (next turn)
-                                      ├── betray           ──► -30 trust + immediate Minimax strike
-                                      └── solo             ──► continue normally
+[1] Own Diplomacy (No Pending Offer):
+    Fuzzy Logic (Context A) ──► prior bias ──► MCTS (Context A + Greedy rollouts)
+                                                ├── propose_alliance ──► target.inbox
+                                                ├── betray           ──► -30 trust + strike ally
+                                                └── solo             ──► continue solo
 
-Chain 2 (Incoming Proposal):
-  Fuzzy(Context B, 3rd-house threat) ──► UCT bias ──► MCTS(Context B)
-                                                        ├── accept ──► Alliance active + PARANOID Minimax
-                                                        └── reject ──► Clear inbox + log
+[2] Answering an Incoming Offer:
+    Fuzzy Logic (Context B, 3rd-house threat) ──► prior bias ──► MCTS (Context B)
+                                                                   ├── accept ──► Alliance + PARANOID Minimax
+                                                                   └── reject ──► Clear inbox
 
-Chain 3 (Military & Conquest):
-  BFS/DFS (reachability) + A* (throne-corridor cost)
-      ──► Minimax (Decomposed / Paranoid, Alpha-Beta)
-      ──► A* (first border crossing)
-      ──► Combat (effective_defense + Uniform(0.80, 1.20) casualties)
-      ──► Elimination check & purge_eliminated()
+[3] Military Move & Battle:
+    BFS / DFS (scouting) + A* (cheapest corridor to King's Landing)
+        ──► Minimax (Decomposed or Paranoid, Alpha-Beta pruning)
+        ──► A* (first border crossing when clicking distant holds)
+        ──► Combat (EffectiveDefense + ±20% rolls + casualties)
+        ──► Elimination check (plunder gold + purge dead house's diplomacy)
 ```
 
 ---
 
-## UI, Visuals, Dragons, Units & Audio
+## Visuals, Dragons, Armies, Audio & Controls
 
-- **Top Realm Bar:** Live Gold, Armies, Holds for all 3 houses, Turn counter, and Mode indicator.
-- **Collapsible `FUZZY [H]` Drawer (Pairwise Fuzzy Diplomacy Intelligence):**
-  - Clickable **`STARK` | `LANNISTER` | `TARGARYEN`** tabs to inspect any house's live perspective.
-  - Displays pairwise **`ALLIANCE`** & **`BETRAYAL`** bars + exact Fuzzy inputs (`Trust`, 3rd-house `Threat`, `Weakness`) against each of the other two houses, plus the house's general **`SOLO WAR`** bar at the bottom.
-- **Collapsible `RAVEN LOG [L]` Drawer:** Chronological feed of every AI algorithm move, battle outcome, alliance proposal, acceptance, rejection, and betrayal.
-- **Live Minimax Hover Tooltip:** During Human turns, hovering any valid adjacent territory displays its exact `Minimax: +XX.X` score (`BEST` highlighted in green) compared directly against `Hold`.
-- **Animated House Dragons & 6-Layer Fire-Breathing VFX:**
-  - **House Stark:** Custom **Frost Dragon** (`assets/units/dragon_stark_flap.png`, 8-frame wingbeat cycle) breathing **blue-white Frostfire**.
-  - **House Lannister:** Custom **Golden Dragon** (`assets/units/dragon_lannister_flap.png`, 8-frame wingbeat cycle) breathing **molten Golden Flame**.
-  - **House Targaryen:** **Valyrian Red Dragon** (`reddragonfly.png`–`reddragonfly4.png`, 4-direction sprite sheets) breathing **crimson-orange Dragonfire**.
-  - All 3 dragons patrol their capitals with periodic fire bursts and swoop high over battles (`altitude 66–74px`) unleashing a 6-layer volumetric flame cone, rolling fireballs, mouth flash, ground blaze tongues, smoke/mist, and streaking sparks.
+- **Top Status Bar:** Shows Gold, Armies, Holds for all 3 houses, Turn number, and Mode.
+- **`FUZZY [H]` Drawer (Pairwise Fuzzy Intelligence):** Click `STARK`, `LANNISTER`, or `TARGARYEN` tabs to inspect any house's live pairwise `ALLIANCE` and `BETRAYAL` scores (along with exact Trust, Threat, and Weakness inputs) against each rival, plus its general `SOLO WAR` bar.
+- **`RAVEN LOG [L]` Drawer:** Chronological log of every AI move, battle result, proposal, acceptance, rejection, and betrayal.
+- **Minimax Hover Preview:** Hover over any adjacent attackable hold on your turn to see its live `Minimax` score (`BEST` highlighted green) compared against `Hold`.
+- **3 Flapping, Fire-Breathing House Dragons:**
+  - **House Stark:** Custom 8-frame wing-flapping **Frost Dragon** breathing **blue-white Frostfire**.
+  - **House Lannister:** Custom 8-frame wing-flapping **Golden Dragon** breathing **molten Golden Flame**.
+  - **House Targaryen:** 4-direction **Valyrian Red Dragon** breathing **crimson Dragonfire**.
+  - All 3 patrol their capitals with periodic fire bursts and swoop high overhead in battles (`altitude 66–74px`) with a 6-layer volumetric flame cone, rolling fireballs, mouth flash, burning ground tongues, smoke/frost mist, and streaking sparks.
 - **Animated Ground Armies:**
-  - **Stark & Lannister attackers:** `Medieval Warrior Pack` (3 front-line warriors).
-  - **Targaryen attackers & defenders:** Mixed 4-unit formation — `2` front-line Medieval Warriors + `2` flanking `EVil Wizard 2` units positioned cleanly outside the dragon's silhouette.
+  - **Stark & Lannister attackers:** 3 `Medieval Warrior Pack` fighters.
+  - **Targaryen attackers & defenders:** Mixed squad of `2` front-line Medieval Warriors + `2` flanking `EVil Wizard 2` casters positioned cleanly outside the dragon.
   - **Opposing / Neutral defenders:** `Hero Knight` squad (`Run`, `Attack1`, `Attack2`, `Idle`, `Hurt`, `Death`).
-- **Dual-Channel Battle Audio & Ducking Background Music:**
-  - **Battle SFX (always active):** Sword-fight audio (`dragon-studio-sword-fight-393849.mp3`) triggers at 30% battle progress; dragon fireball whoosh (`floraphonic-fireball-whoosh-5-179129.mp3`) ignites at 34%; both fade out cleanly at 80%.
-  - **Background Music (`Lament of the War - MP3 Preview.mp3`):** **Disabled by default**; toggleable anytime via the top-right **`MUSIC: OFF / ON`** button or **`M`** key. When enabled, it smoothly ducks from `0.42` down to `0.12` during sword/dragon clashes and swells back afterward. Battle SFX are never disabled by the music toggle.
+- **Battle SFX & Toggleable Ducking Music:**
+  - **Sword Fight** (`dragon-studio-sword-fight-393849.mp3`) and **Dragon Fireball** (`floraphonic-fireball-whoosh-5-179129.mp3`) play automatically in sync with every battle and are **always enabled**.
+  - **Background Music** (`Lament of the War - MP3 Preview.mp3`) starts **OFF by default**. Click **`MUSIC: OFF`** (or press `M`) to turn it ON/OFF. When ON, it automatically **ducks (dims)** smoothly from `0.42` to `0.12` during sword/dragon clashes and swells back up afterward.
 
 ---
 
-## Controls & Running the Game
+## How to Run & Verify the Game
 
 ### Requirements
 - Python 3.10+
-- `pygame`, `numpy`, `Pillow` *(optional: `scikit-fuzzy` — pure-NumPy Mamdani fallback is built in)*
+- `pygame`, `numpy`, `Pillow` *(optional: `scikit-fuzzy`; a pure-NumPy Mamdani implementation is built in)*
 
-### Launch
+### Launch the Game
 ```bash
 python main.py
 ```
 
-### Controls & Shortcuts
-| Input | Action |
+### Controls
+| Control | What It Does |
 | :--- | :--- |
-| **Click Territory** *(Human turn)* | Attack adjacent hold directly, or march 1 step along A\* route toward a distant hold |
-| **`ALLY <HOUSE>` / `BETRAY` / `HOLD TURN`** | Queue alliance proposal (does not end turn), betray & strike, or fortify & pass |
-| **`ACCEPT` / `REJECT`** | Respond to an incoming alliance proposal in your inbox |
-| **`ADVANCE TURN >>` / `SPACE` / `ENTER` / `→`** | Step turns in AI vs AI mode (or dismiss victory modal) |
-| **`H`** or **`FUZZY [H]`** | Toggle Fuzzy Diplomacy Intelligence drawer |
-| **`L`** or **`RAVEN LOG [L]`** | Toggle chronological Raven's Log drawer |
-| **`M`** or **`MUSIC: OFF/ON`** | Toggle background music ON/OFF *(sword & dragon SFX stay active)* |
+| **Click Territory** *(Human turn)* | Attack an adjacent hold, or march 1 step along the A\* path to a distant hold |
+| **`ALLY <HOUSE>` / `BETRAY` / `HOLD TURN`** | Send proposal (doesn't end turn), betray & strike, or fortify & pass |
+| **`ACCEPT` / `REJECT`** | Answer a pending alliance offer in your inbox |
+| **`ADVANCE TURN >>` / `SPACE` / `ENTER` / `→`** | Advance one turn in AI vs AI mode (or close victory screen) |
+| **`H`** or **`FUZZY [H]`** | Open/close the Fuzzy Diplomacy Intelligence drawer |
+| **`L`** or **`RAVEN LOG [L]`** | Open/close the Raven's Log drawer |
+| **`M`** or **`MUSIC: OFF/ON`** | Turn background music ON/OFF *(battle SFX stay active)* |
 | **`F11`** | Toggle fullscreen |
 | **`ESC`** | Close victory modal / return to startup menu / exit |
 
----
-
-## Automated Verification Suite
-
-Run the standalone verification & demo script to prove all 7 AI algorithms, game-logic invariants, and multi-game AI balance in one command:
+### Run the Automated Algorithm & Logic Verification Suite
+To verify all 7 AI algorithms, game-logic rules, and a multi-game AI vs AI simulation in seconds (great for demos and grading):
 
 ```bash
 python test_algorithms.py
 ```
 
-Checks verified:
-1. **BFS:** Reachability at depth 1 (`5` holds) and depth 2 (`12` holds including King's Landing).
-2. **DFS:** Cycle-free expansion corridors (`64` valid simple paths at depth 3 from Winterfell).
-3. **Greedy:** Maximizes `resource_value - defense_bonus` (`RIVERRUN` from Winterfell).
-4. **A\*:** Optimal defense-weighted route with `hex_distance` heuristic (`WINTERFELL -> THE TWINS -> KING'S LANDING`, cost `6`, hex distance `5`).
-5. **Mamdani Fuzzy Logic:** Extreme threat/weakness/trust responses across Context A & Context B.
-6. **Minimax + A\* Corridor & Alliance Modes:** Decomposed/Paranoid switching across all 3 houses, A\* throne-cost cache, and automatic `-30` betrayal when switching allies.
-7. **MCTS (UCT) & `_Sim` Parity:** Context A & B decisions, supply cap enforcement, King's Landing threshold guard, and `>= 1` army floor.
-8. **Game-Logic Invariants:** `effective_defense`, human ally+move turn rule, supply cap (`18/18` on 1 hold), BFS/DFS persistence, and eliminated-house proposal purging.
-9. **Multi-Game Headless AI vs AI Simulation:** Confirms all 3 houses win competitively, both Iron Throne and Elimination wins occur, active house-vs-house border wars take place, and zero runtime errors occur.
+It runs **9 automated checks**:
+1. **BFS** reachability at depth 1 and depth 2.
+2. **DFS** valid cycle-free expansion corridors at depth 3.
+3. **Greedy** target selection maximizing `resource - defense`.
+4. **A\*** lowest-defense route to King's Landing using `hex_distance`.
+5. **Mamdani Fuzzy Logic** extreme scenarios for Context A & Context B.
+6. **Minimax + A\* Corridor & Alliance Modes** (`DECOMPOSED` ↔ `PARANOID` sync across all 3 houses + automatic `-30` betrayal when switching allies).
+7. **MCTS (UCT) & `_Sim` Parity** (Context A & B decisions, supply cap, King's Landing guard, `>= 1` army floor).
+8. **Game-Logic Invariants** (`effective_defense`, human ally+move turn rule, supply cap on 1 hold, BFS/DFS telemetry, and eliminated-house proposal purging).
+9. **8-Game Headless AI vs AI Simulation** confirming balanced winners, active house-vs-house wars, and clean game completion.
 
 ---
 
-## Project Structure & Known Approximations
+## Project File Map
 
 ```text
-├── main.py                      # Entry point, DPI setup, GameController, audio/ducking & main loop
-├── constants.py                 # Window/hex geometry, palette, economy & AI hyperparameters
-├── map.py                       # 19 Westeros holds, Voronoi adjacency graph, terrain & hex_distance
-├── house.py                     # House state (gold, armies, territories, inbox, fuzzy/BFS/DFS telemetry)
-├── diplomacy.py                 # Alliances, trust matrix, async inbox, betrayal & purge_eliminated
-├── combat.py                    # effective_defense, stochastic combat resolution & elimination plunder
-├── renderer.py                  # 2.5D isometric renderer, dragons/6-layer fire VFX, units, HUD & tooltips
-├── test_algorithms.py           # Automated 9-check algorithm & invariant verification suite
-├── instructions.txt             # Complete mechanics & AI architecture specification
+├── main.py                      # Entry point, GameController, turn loop, battle audio & music ducking
+├── constants.py                 # Window/hex layout, colors, economy & AI settings
+├── map.py                       # 19 Westeros holds, Voronoi neighbor graph, terrain & hex_distance
+├── house.py                     # House state (gold, armies, holds, inbox, fuzzy/BFS/DFS data)
+├── diplomacy.py                 # Alliances, trust scores, async inbox, betrayal & dead-house purge
+├── combat.py                    # Effective defense, ±20% combat rolls, casualties & elimination loot
+├── renderer.py                  # 2.5D map, 3 flapping dragons + fire VFX, ground units, HUD & tooltips
+├── test_algorithms.py           # Automated 9-check verification & teacher demo script
+├── instructions.txt             # Full technical specification of all mechanics and AI systems
 ├── algorithms/
 │   ├── bfs.py                   # Breadth-First Search reachability
 │   ├── dfs.py                   # Depth-First Search expansion corridors
-│   ├── greedy.py                # Greedy target heuristic & MCTS rollout opponent model
-│   ├── astar.py                 # A* defense-weighted pathfinding with hex_distance heuristic
+│   ├── greedy.py                # Greedy target selection & MCTS rollout model
+│   ├── astar.py                 # A* lowest-defense pathfinding with hex_distance heuristic
 │   ├── fuzzy_diplomacy.py       # Mamdani Fuzzy Logic (Context A & Context B)
 │   ├── minimax.py               # Alpha-Beta Minimax (Decomposed & Paranoid + A* corridor bonus)
 │   └── mcts.py                  # UCT Monte Carlo Tree Search diplomacy engine
 └── assets/
     ├── buildings/               # 2.5D isometric castle & landmark sprites
-    ├── sounds/                  # Sword fight SFX, dragon fireball SFX & looping background score
+    ├── sounds/                  # Sword fight SFX, dragon fireball SFX & background music
     ├── tiles/                   # Seamless isometric terrain tiles
-    ├── ui/                      # HUD icons, crests, Evil Wizard 2, Hero Knight, Medieval Warrior Pack & Red Dragon sheets
-    └── units/                   # Frost Dragon & Golden Dragon RGBA sprites + 8-frame wingbeat sheets
+    ├── ui/                      # HUD icons, crests, Evil Wizard 2, Hero Knight, Medieval Warrior Pack & Red Dragon
+    └── units/                   # Frost Dragon & Golden Dragon sprites + 8-frame wingbeat sheets
 ```
 
-### Documented AI Approximations
-1. **Decomposed Minimax:** Evaluates unallied opponents independently via military-strength-weighted sums, which can underestimate incidental coordination between two unallied rivals.
-2. **Paranoid Minimax:** Assumes full coalition cooperation while an alliance holds; future pact breakdown is modeled instead by MCTS rollouts.
-3. **Deterministic Expected-Value Combat inside Minimax:** Replaces `Uniform(0.80, 1.20)` with its expectation `1.0` to keep depth-3 Alpha-Beta search instantaneous, while live combat and MCTS rollouts sample the true stochastic rolls.
+### Known AI Approximations
+1. **Decomposed Minimax** evaluates unallied rivals independently via weighted averages, which may slightly underestimate accidental coordination between unallied houses.
+2. **Paranoid Minimax** assumes full cooperation between allied rivals while the pact stands; possible future betrayals are handled by MCTS rollouts instead.
+3. **Expected-Value Combat in Minimax** assumes average battle luck (`1.0`) so depth-3 search runs instantly, whereas real battles and MCTS rollouts roll `±20%` randomness.
