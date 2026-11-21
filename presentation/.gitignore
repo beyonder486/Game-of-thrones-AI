@@ -1,0 +1,5 @@
+# Raw gameplay recordings are too large for GitHub
+gameplay/*.mkv
+# PNG originals; JPG copies are committed
+screenshots/*.png
+screenshots/visualizer/*.png

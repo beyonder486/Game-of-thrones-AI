@@ -1,0 +1,18 @@
+<section id="algomap" data-transition="fade">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<img class="mascot" src="/_blob/5efc1e5cf5122fc928dd4d32e0469200" alt="" style="width:170px; height:127px; top:14px">
+<div class="head"><p class="eyebrow">Algorithms in the Flow</p><h2>Seven algorithms, each with one job</h2></div>
+<div class="flowrow" style="align-items:stretch">
+<div class="col fragment" style="gap:12px"><p class="label">1 · Scout</p><div class="node"><p class="t">BFS</p><p class="s">holds within 3 marches</p></div><div class="node"><p class="t">DFS</p><p class="s">expansion corridors</p></div><p class="note">info only</p></div>
+<x-shape kind="arrow-right" class="arr" style="align-self:center"></x-shape>
+<div class="col fragment" style="gap:12px"><p class="label">2 · Feel</p><div class="node"><p class="t">Fuzzy Logic</p><p class="s">threat, weakness, trust → alliance · betrayal · solo (0–1)</p></div><p class="note">scores only</p></div>
+<x-shape kind="arrow-right" class="arr" style="align-self:center"></x-shape>
+<div class="col fragment" style="gap:12px"><p class="label">3 · Diplomacy</p><div class="node blue"><p class="t">MCTS</p><p class="s">500 futures: propose, betray, solo, accept, reject</p></div><div class="node blue"><p class="t">Greedy</p><p class="s">plays every house inside them</p></div></div>
+<x-shape kind="arrow-right" class="arr" style="align-self:center"></x-shape>
+<div class="col fragment" style="gap:12px"><p class="label" style="color:var(--ember)">4 · War</p><div class="node ember"><p class="t">Minimax</p><p class="s">3 moves ahead, α-β; attack a hold or Hold</p></div></div>
+<x-shape kind="arrow-left" class="arr" style="align-self:center; background:var(--ember)"></x-shape>
+<div class="col fragment" style="gap:12px"><p class="label" style="color:var(--ember)">5 · Route</p><div class="node ember"><p class="t">A*</p><p class="s">safest path to King’s Landing; first step to a distant click</p></div></div>
+</div>
+<div class="callout fragment"><p class="ct">💡 Key Insight · clean split</p><p class="tx">Fuzzy only scores · MCTS only decides diplomacy · Minimax + A* only decide war. No algorithm both scores and decides.</p></div>
+<aside>Reveal one stage per click. A* feeds Minimax (throne-corridor bonus), which is why its arrow points back.</aside>
+</section>

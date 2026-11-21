@@ -1,0 +1,68 @@
+<section id="mctscases" data-transition="fade">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<div class="head"><p class="eyebrow">MCTS · Situations</p><h2>Three decisions, 500 futures each</h2></div>
+<div class="row">
+<div style="flex:0 0 1040px; height:680px"></div>
+<div class="col">
+<div class="card"><p class="label">1 · Targaryen T2 · stay solo?</p><p>Solo 393 ✓ vs Propose 107<br>close Q → fuzzy bias tipped it</p></div>
+<div class="card ember fragment" data-fragment-index="1"><p class="label">2 · Lannister T4 · accept?</p><p>Accept 496 ✓ vs Reject 4<br>Q 2.07 vs 0.00 overruled bias</p></div>
+<div class="card blue fragment" data-fragment-index="2"><p class="label" style="color:var(--blue)">3 · Stark allied · betray?</p><p>Keep 489 ✓ vs Betray 11<br>fuzzy said betray (0.64)</p></div>
+<div class="callout"><p class="ct">💡 Key Insight</p><p class="tx">Fuzzy steers; MCTS has the final word once outcomes clearly differ.</p></div>
+</div>
+</div>
+<x-embed style="position:absolute; left:128px; top:268px; width:1040px; height:680px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1040px;height:680px}</style></head><body><canvas id="c"></canvas><script>
+const W=1040,H=680,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const SC=[{t:"Targaryen, turn 2 · Context A",n:["Targaryen has no ally. Propose to Lannister, or stay solo? Both futures score almost","the same (Q 0.03 vs 0.05), so Fuzzy's stronger solo instinct (0.73) steers the visits."],o:[["Solo",.03,.73,.01],["Propose → Lannister",.05,.54,.01]]},{t:"Lannister, turn 4 · Context B",n:["Stark's raven arrived while Targaryen leads. Futures with the alliance score far","higher (Q 2.07 vs 0.00), so Accept wins even though Reject had the higher bias."],o:[["Accept Stark",2.07,.5,.3],["Reject",0,.76,0]]},{t:"Stark, mid-game · allied with Targaryen",n:["Stark is strong (28 armies) but trusts Targaryen only 22: Fuzzy says betray (0.64).","Futures that keep the pact score far higher (Q 2.81 vs 0.90), so MCTS keeps it."],o:[["Keep alliance",2.81,0,.3],["Betray Targaryen",.9,.64,.3]]}];
+let si=0,it=0,hold=0,N,Q;function reset(){N=[0,0];Q=[0,0];it=0}reset();
+function g(){return (Math.random()+Math.random()+Math.random()-1.5)*1.4}
+function uv(k){return N[k]?Q[k]/N[k]+1.414*Math.sqrt(Math.log(Math.max(it,1))/N[k])+SC[si].o[k][2]:99}
+function iter(){it++;let k=N[0]?(N[1]?(uv(0)>=uv(1)?0:1):1):0;const o=SC[si].o[k];Q[k]+=o[1]+g()*o[3];N[k]++}
+function draw(){x.clearRect(0,0,W,H);const s=SC[si];x.textAlign="left";
+x.fillStyle="#E0B45E";x.font="600 28px Segoe UI,Arial";x.fillText("Live UCT · "+s.t,28,48);
+x.fillStyle="#F3EEE4";x.font="24px Segoe UI,Arial";x.fillText(s.n[0],28,90);x.fillText(s.n[1],28,124);
+x.fillStyle="#F3EEE4";x.font="600 40px Segoe UI,Arial";x.fillText("iteration "+it+" / 500",28,190);
+const best=N[0]>=N[1]?0:1,cols=["#8FD69B","#6EC1DC"];
+s.o.forEach((o,k)=>{const y=270+k*170,pick=it==500?k==best:false;x.fillStyle=pick?"#8FD69B":"#F3EEE4";x.font="600 30px Segoe UI,Arial";x.fillText(o[0]+(pick?"  ✓ chosen":""),28,y);
+x.fillStyle="rgba(255,255,255,.08)";x.fillRect(28,y+18,980,40);x.fillStyle=cols[k];x.fillRect(28,y+18,980*N[k]/500,40);
+x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("visits "+N[k]+"   ·   avg Q "+(N[k]?(Q[k]/N[k]).toFixed(2):"–")+"   ·   bias "+o[2].toFixed(2)+"   ·   UCT "+(N[k]?uv(k).toFixed(3):"–"),28,y+94)});
+x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText(it==500?"Most-visited option wins.":"Each iteration plays one future for the option with the highest UCT.",28,H-36)}
+while(it!=500)iter();draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" data-fragment-index="1" style="position:absolute; left:128px; top:268px; width:1040px; height:680px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1040px;height:680px}</style></head><body><canvas id="c"></canvas><script>
+const W=1040,H=680,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const SC=[{t:"Targaryen, turn 2 · Context A",n:["Targaryen has no ally. Propose to Lannister, or stay solo? Both futures score almost","the same (Q 0.03 vs 0.05), so Fuzzy's stronger solo instinct (0.73) steers the visits."],o:[["Solo",.03,.73,.01],["Propose → Lannister",.05,.54,.01]]},{t:"Lannister, turn 4 · Context B",n:["Stark's raven arrived while Targaryen leads. Futures with the alliance score far","higher (Q 2.07 vs 0.00), so Accept wins even though Reject had the higher bias."],o:[["Accept Stark",2.07,.5,.3],["Reject",0,.76,0]]},{t:"Stark, mid-game · allied with Targaryen",n:["Stark is strong (28 armies) but trusts Targaryen only 22: Fuzzy says betray (0.64).","Futures that keep the pact score far higher (Q 2.81 vs 0.90), so MCTS keeps it."],o:[["Keep alliance",2.81,0,.3],["Betray Targaryen",.9,.64,.3]]}];
+let si=1,it=0,hold=0,N,Q;function reset(){N=[0,0];Q=[0,0];it=0}reset();
+function g(){return (Math.random()+Math.random()+Math.random()-1.5)*1.4}
+function uv(k){return N[k]?Q[k]/N[k]+1.414*Math.sqrt(Math.log(Math.max(it,1))/N[k])+SC[si].o[k][2]:99}
+function iter(){it++;let k=N[0]?(N[1]?(uv(0)>=uv(1)?0:1):1):0;const o=SC[si].o[k];Q[k]+=o[1]+g()*o[3];N[k]++}
+function draw(){x.clearRect(0,0,W,H);const s=SC[si];x.textAlign="left";
+x.fillStyle="#E0B45E";x.font="600 28px Segoe UI,Arial";x.fillText("Live UCT · "+s.t,28,48);
+x.fillStyle="#F3EEE4";x.font="24px Segoe UI,Arial";x.fillText(s.n[0],28,90);x.fillText(s.n[1],28,124);
+x.fillStyle="#F3EEE4";x.font="600 40px Segoe UI,Arial";x.fillText("iteration "+it+" / 500",28,190);
+const best=N[0]>=N[1]?0:1,cols=["#8FD69B","#6EC1DC"];
+s.o.forEach((o,k)=>{const y=270+k*170,pick=it==500?k==best:false;x.fillStyle=pick?"#8FD69B":"#F3EEE4";x.font="600 30px Segoe UI,Arial";x.fillText(o[0]+(pick?"  ✓ chosen":""),28,y);
+x.fillStyle="rgba(255,255,255,.08)";x.fillRect(28,y+18,980,40);x.fillStyle=cols[k];x.fillRect(28,y+18,980*N[k]/500,40);
+x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("visits "+N[k]+"   ·   avg Q "+(N[k]?(Q[k]/N[k]).toFixed(2):"–")+"   ·   bias "+o[2].toFixed(2)+"   ·   UCT "+(N[k]?uv(k).toFixed(3):"–"),28,y+94)});
+x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText(it==500?"Most-visited option wins.":"Each iteration plays one future for the option with the highest UCT.",28,H-36)}
+while(it!=500)iter();draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" data-fragment-index="2" style="position:absolute; left:128px; top:268px; width:1040px; height:680px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1040px;height:680px}</style></head><body><canvas id="c"></canvas><script>
+const W=1040,H=680,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const SC=[{t:"Targaryen, turn 2 · Context A",n:["Targaryen has no ally. Propose to Lannister, or stay solo? Both futures score almost","the same (Q 0.03 vs 0.05), so Fuzzy's stronger solo instinct (0.73) steers the visits."],o:[["Solo",.03,.73,.01],["Propose → Lannister",.05,.54,.01]]},{t:"Lannister, turn 4 · Context B",n:["Stark's raven arrived while Targaryen leads. Futures with the alliance score far","higher (Q 2.07 vs 0.00), so Accept wins even though Reject had the higher bias."],o:[["Accept Stark",2.07,.5,.3],["Reject",0,.76,0]]},{t:"Stark, mid-game · allied with Targaryen",n:["Stark is strong (28 armies) but trusts Targaryen only 22: Fuzzy says betray (0.64).","Futures that keep the pact score far higher (Q 2.81 vs 0.90), so MCTS keeps it."],o:[["Keep alliance",2.81,0,.3],["Betray Targaryen",.9,.64,.3]]}];
+let si=2,it=0,hold=0,N,Q;function reset(){N=[0,0];Q=[0,0];it=0}reset();
+function g(){return (Math.random()+Math.random()+Math.random()-1.5)*1.4}
+function uv(k){return N[k]?Q[k]/N[k]+1.414*Math.sqrt(Math.log(Math.max(it,1))/N[k])+SC[si].o[k][2]:99}
+function iter(){it++;let k=N[0]?(N[1]?(uv(0)>=uv(1)?0:1):1):0;const o=SC[si].o[k];Q[k]+=o[1]+g()*o[3];N[k]++}
+function draw(){x.clearRect(0,0,W,H);const s=SC[si];x.textAlign="left";
+x.fillStyle="#E0B45E";x.font="600 28px Segoe UI,Arial";x.fillText("Live UCT · "+s.t,28,48);
+x.fillStyle="#F3EEE4";x.font="24px Segoe UI,Arial";x.fillText(s.n[0],28,90);x.fillText(s.n[1],28,124);
+x.fillStyle="#F3EEE4";x.font="600 40px Segoe UI,Arial";x.fillText("iteration "+it+" / 500",28,190);
+const best=N[0]>=N[1]?0:1,cols=["#8FD69B","#6EC1DC"];
+s.o.forEach((o,k)=>{const y=270+k*170,pick=it==500?k==best:false;x.fillStyle=pick?"#8FD69B":"#F3EEE4";x.font="600 30px Segoe UI,Arial";x.fillText(o[0]+(pick?"  ✓ chosen":""),28,y);
+x.fillStyle="rgba(255,255,255,.08)";x.fillRect(28,y+18,980,40);x.fillStyle=cols[k];x.fillRect(28,y+18,980*N[k]/500,40);
+x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("visits "+N[k]+"   ·   avg Q "+(N[k]?(Q[k]/N[k]).toFixed(2):"–")+"   ·   bias "+o[2].toFixed(2)+"   ·   UCT "+(N[k]?uv(k).toFixed(3):"–"),28,y+94)});
+x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText(it==500?"Most-visited option wins.":"Each iteration plays one future for the option with the highest UCT.",28,H-36)}
+while(it!=500)iter();draw();
+</script></body></html></x-embed>
+<aside>Live: the real UCT selection rule with measured average rewards. Final counts land near the real runs (393 / 107, 496 / 4, 489 / 11); small differences come from random rewards, as in the game. Situation 3 is a mid-game scenario from visualize_trees.py: Stark 28 armies and 6 holds, allied with Targaryen at trust 22.</aside>
+</section>

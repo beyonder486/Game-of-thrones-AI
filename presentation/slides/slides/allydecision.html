@@ -1,0 +1,22 @@
+<section id="allydecision" data-transition="push">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<div class="head"><p class="eyebrow">Diplomacy · 1</p><h2>Should we accept this alliance?</h2></div>
+<div style="position:relative; height:170px; display:flex; align-items:center; justify-content:space-between; background:var(--panel); border-radius:14px; padding:0 40px">
+<div class="flowrow"><img src="/_blob/74e0c13500c81b0677a991d26867a34e" alt="Stark crest" style="width:80px; height:80px"><div><p class="label">Turn N · Stark</p><p class="note">sends a raven, still attacks</p></div></div>
+<img class="courier" src="/_blob/90b59b1cf562d8e228a882869bd5f37d" alt="Raven carrying the offer" style="left:250px; top:50px; width:72px; height:72px">
+<div class="flowrow"><div style="text-align:right"><p class="label">Turn N+1 · Lannister</p><p class="note">reads the inbox first</p></div><img src="/_blob/0dce24bf2f82d10ea0d3d38c3442d6c7" alt="Lannister crest" style="width:80px; height:80px"></div>
+</div>
+<div class="row" style="align-items:stretch">
+<div class="card fragment"><p class="label">① Fuzzy · Context B</p>
+<div class="flowrow"><p class="note" style="flex:0 0 190px">threat 80</p><div class="bar"><div class="fill" style="width:80%; background:var(--ember)"></div></div></div>
+<div class="flowrow"><p class="note" style="flex:0 0 190px">weakness 32.5</p><div class="bar"><div class="fill" style="width:32%; background:var(--blue)"></div></div></div>
+<div class="flowrow"><p class="note" style="flex:0 0 190px">trust 65</p><div class="bar"><div class="fill" style="width:65%; background:#8FD69B"></div></div></div>
+<p>→ alliance 0.50 · solo 0.76</p></div>
+<div class="card blue fragment"><p class="label" style="color:var(--blue)">② MCTS · 500 rollouts</p>
+<div class="flowrow"><p class="note" style="flex:0 0 150px">accept</p><div class="bar"><div class="fill" style="width:99%; background:#8FD69B"></div></div><p class="note">496</p></div>
+<div class="flowrow"><p class="note" style="flex:0 0 150px">reject</p><div class="bar"><div class="fill" style="width:1%; background:var(--ember)"></div></div><p class="note">4</p></div>
+<p>Q 2.07 vs 0.00: allying wins far more often.</p></div>
+<div class="card fragment" style="border-top-color:#8FD69B; align-items:center; justify-content:center; flex:0 0 330px"><p class="label" style="color:#8FD69B">③ Answer</p><p style="font-family:'Cinzel', Georgia, serif; font-size:64px; color:#8FD69B; font-weight:700">ACCEPT</p><p class="note">alliance forms</p></div>
+</div>
+<p class="note">Threat = the third house (Targaryen 32) · weakness from own strength 27 · trust toward the sender. Auto-reject if only two houses remain or the sender is gone. Accepting while allied = betraying the old ally (−30).</p>
+</section>

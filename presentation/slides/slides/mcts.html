@@ -1,0 +1,29 @@
+<section id="mcts" data-transition="push" style="gap:28px">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<div class="head"><p class="eyebrow">Algorithm 7 · Monte Carlo Tree Search</p><h2>500 simulated futures per decision</h2></div>
+<p class="formula">UCT(a) = Q(a) / N(a) + 1.414 · √( ln N_parent / N(a) ) + FuzzyBias(a)</p>
+<div class="flowrow">
+<div class="node green"><p class="t">Q / N</p><p class="s">exploit: average reward so far</p></div>
+<p class="label">+</p>
+<div class="node blue"><p class="t">1.414 · √(ln N / n)</p><p class="s">explore: try rarely-tested options</p></div>
+<p class="label">+</p>
+<div class="node"><p class="t">FuzzyBias</p><p class="s">instinct from Fuzzy Logic</p></div>
+</div>
+<div class="flowrow fragment">
+<p class="lane">× 500</p>
+<div class="node"><p class="t">Select</p><p class="s">highest UCT</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="t">Simulate 10 turns</p><p class="s">Greedy play, real ±20% luck</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="t">Score</p><p class="s">reward of end state</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="t">Update</p><p class="s">Q and N</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node green"><p class="t">Return</p><p class="s">most-visited + target</p></div>
+</div>
+<div class="row">
+<div class="callout tip"><p class="ct">📥 Takes</p><p class="tx">State, fuzzy scores, trust. Options: propose / betray / solo, or accept / reject.</p></div>
+<div class="callout why"><p class="ct">❓ Why MCTS</p><p class="tx">Diplomacy pays off turns later and depends on luck; sampling futures beats hand-written rules.</p></div>
+</div>
+<aside>Proposals go to the most-trusted rival, ties to the weaker one, so two weaker houses team up against the leader.</aside>
+</section>

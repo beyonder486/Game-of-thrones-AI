@@ -1,0 +1,240 @@
+<section id="minimaxsearch" data-transition="fade">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<div class="head"><p class="eyebrow">Minimax · The Real Search</p><h2>Stark’s turn 1, three moves deep</h2></div>
+<div class="flowrow">
+<div class="node"><p class="label">📥 Takes</p><p class="s">houses, map, alliances, betray target · depth 3</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="label">⚙️ Calculates</p><p class="s">me → enemy’s best reply → me, V at average luck</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="label">📤 Returns</p><p class="s">score per hold + Hold → one pick or None</p></div>
+</div>
+<div class="row">
+<div style="flex:0 0 1100px; height:510px"></div>
+<div class="col">
+<div class="card" style="align-items:center"><p class="big" style="font-size:56px">143</p><p>positions in the tree</p></div>
+<div class="flowrow">
+<div class="card blue" style="align-items:center"><p class="big" style="font-size:44px">104</p><p>scored</p></div>
+<div class="card ember" style="align-items:center"><p class="big" style="font-size:44px">13</p><p>pruned ✂</p></div>
+</div>
+<div class="callout"><p class="ct">💡 Key Insight</p><p class="tx">Hold is always an option, so the AI attacks only when an attack beats waiting.</p></div>
+</div>
+</div>
+<x-embed style="position:absolute; left:128px; top:440px; width:1100px; height:510px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:510px}</style></head><body><canvas id="c"></canvas><script>
+const W=1100,H=510,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const L1=[["Hold",68.5],["Pyke",79],["Riverrun",41.5],["The Wall",81],["The Twins",81.5]];
+const L2=[["Hold",87.5],["Lannisport",84],["Riverrun",85.5],["Oldtown",81.5]];
+const L3=[["Hold",68.5],["Pyke",79],["Riverrun",79.5],["Wall",81],["Oldtown",61],["Moat C.",81],["Highgarden",81.5]];
+const P1=L1.map((d,i)=>[120+i*215,205]),P2=L2.map((d,i)=>[380+i*215,290]),P3=L3.map((d,i)=>[85+i*155,385]),ROOT=[550,128];
+const N=[["Stark, turn 1: five possible moves. For each one, Minimax plays","Lannister's best reply, then Stark's best follow-up (depth 3)."],
+["Each move gets a score. Let's look inside The Twins to see","where its 81.5 comes from."],
+["Lannister has 4 replies. MIN assumes the reply that hurts","Stark most: min(87.5, 84, 85.5, 81.5) = Oldtown, 81.5."],
+["After Oldtown, Stark's best follow-up is Highgarden, scored","by the evaluation function V."],
+["V = land 56 + armies 16.5 + gold 30 + throne path 13.5","− enemy 34.5 = 81.5  (A* cost from The Twins is 3)."],
+["Back at the root: The Twins 81.5 beats The Wall 81, Pyke 79,","Hold 68.5, Riverrun 41.5 → Stark attacks The Twins."],
+["Whole search: 143 positions, 104 scored, 13 pruned by","alpha-beta. Same answer, less work."]];
+const s=0;
+function box(p,w,h,t,v,on,best,col){x.fillStyle=on?(best?"#3a2f12":"#12303a"):"#1b2731";x.fillRect(p[0]-w/2,p[1]-h/2,w,h);x.strokeStyle=best?"#E0B45E":(on?col:"rgba(195,205,207,.3)");x.lineWidth=best?4:2;x.strokeRect(p[0]-w/2,p[1]-h/2,w,h);
+x.fillStyle=on?"#F3EEE4":"#7D8C93";x.textAlign="center";x.font=(best?"600 ":"")+"24px Segoe UI,Arial";if(h>50){x.fillText(t,p[0],p[1]-4);x.fillText(on?v:"…",p[0],p[1]+24)}else x.fillText(t+"  "+(on?v:"…"),p[0],p[1]+8)}
+function ln(a,b,on,gold){x.strokeStyle=gold?"#E0B45E":(on?"rgba(110,193,220,.7)":"rgba(195,205,207,.18)");x.lineWidth=gold?4:2;x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);x.stroke()}
+function draw(){x.clearRect(0,0,W,H);x.textAlign="left";x.fillStyle="#F3EEE4";x.font="24px Segoe UI,Arial";x.fillText(N[s][0],22,36);x.fillText(N[s][1],22,68);
+const pv=s>=5;P1.forEach((p,i)=>ln([ROOT[0],ROOT[1]+22],[p[0],p[1]-22],s>=1,pv?i==4:false));
+if(s>=2)P2.forEach((p,i)=>ln([P1[4][0],P1[4][1]+22],[p[0],p[1]-22],true,pv?i==3:false));
+if(s>=3)P3.forEach((p,i)=>ln([P2[3][0],P2[3][1]+22],[p[0],p[1]-30],true,pv?i==6:false));
+box(ROOT,250,44,"Stark (MAX)",s>=5?"81.5":"?",true,pv,"#E0B45E");
+L1.forEach((d,i)=>box(P1[i],200,44,d[0],d[1],s>=1,s>=5?i==4:(s>=1?(s==1?i==4:false):false),"#6EC1DC"));
+if(s>=2)L2.forEach((d,i)=>box(P2[i],200,44,d[0],d[1],true,i==3,"#E8794A"));
+if(s>=3)L3.forEach((d,i)=>box(P3[i],145,60,d[0],d[1],true,i==6,"#6EC1DC"));
+x.textAlign="left";x.font="600 24px Segoe UI,Arial";x.fillStyle="#E0B45E";x.fillText("MAX · Stark",22,128+8);
+if(s>=2){x.fillStyle="#E8794A";x.fillText("MIN · Lannister",22,290+8)}
+if(s>=4){x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("land 56  +  armies 16.5  +  gold 30  +  path 13.5  −  enemy 34.5  =  81.5",22,474)}
+if(s==6){x.fillStyle="#E8794A";x.font="600 24px Segoe UI,Arial";x.textAlign="right";x.fillText("✂ 13 branches skipped",1080,474)}}
+draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" style="position:absolute; left:128px; top:440px; width:1100px; height:510px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:510px}</style></head><body><canvas id="c"></canvas><script>
+const W=1100,H=510,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const L1=[["Hold",68.5],["Pyke",79],["Riverrun",41.5],["The Wall",81],["The Twins",81.5]];
+const L2=[["Hold",87.5],["Lannisport",84],["Riverrun",85.5],["Oldtown",81.5]];
+const L3=[["Hold",68.5],["Pyke",79],["Riverrun",79.5],["Wall",81],["Oldtown",61],["Moat C.",81],["Highgarden",81.5]];
+const P1=L1.map((d,i)=>[120+i*215,205]),P2=L2.map((d,i)=>[380+i*215,290]),P3=L3.map((d,i)=>[85+i*155,385]),ROOT=[550,128];
+const N=[["Stark, turn 1: five possible moves. For each one, Minimax plays","Lannister's best reply, then Stark's best follow-up (depth 3)."],
+["Each move gets a score. Let's look inside The Twins to see","where its 81.5 comes from."],
+["Lannister has 4 replies. MIN assumes the reply that hurts","Stark most: min(87.5, 84, 85.5, 81.5) = Oldtown, 81.5."],
+["After Oldtown, Stark's best follow-up is Highgarden, scored","by the evaluation function V."],
+["V = land 56 + armies 16.5 + gold 30 + throne path 13.5","− enemy 34.5 = 81.5  (A* cost from The Twins is 3)."],
+["Back at the root: The Twins 81.5 beats The Wall 81, Pyke 79,","Hold 68.5, Riverrun 41.5 → Stark attacks The Twins."],
+["Whole search: 143 positions, 104 scored, 13 pruned by","alpha-beta. Same answer, less work."]];
+const s=1;
+function box(p,w,h,t,v,on,best,col){x.fillStyle=on?(best?"#3a2f12":"#12303a"):"#1b2731";x.fillRect(p[0]-w/2,p[1]-h/2,w,h);x.strokeStyle=best?"#E0B45E":(on?col:"rgba(195,205,207,.3)");x.lineWidth=best?4:2;x.strokeRect(p[0]-w/2,p[1]-h/2,w,h);
+x.fillStyle=on?"#F3EEE4":"#7D8C93";x.textAlign="center";x.font=(best?"600 ":"")+"24px Segoe UI,Arial";if(h>50){x.fillText(t,p[0],p[1]-4);x.fillText(on?v:"…",p[0],p[1]+24)}else x.fillText(t+"  "+(on?v:"…"),p[0],p[1]+8)}
+function ln(a,b,on,gold){x.strokeStyle=gold?"#E0B45E":(on?"rgba(110,193,220,.7)":"rgba(195,205,207,.18)");x.lineWidth=gold?4:2;x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);x.stroke()}
+function draw(){x.clearRect(0,0,W,H);x.textAlign="left";x.fillStyle="#F3EEE4";x.font="24px Segoe UI,Arial";x.fillText(N[s][0],22,36);x.fillText(N[s][1],22,68);
+const pv=s>=5;P1.forEach((p,i)=>ln([ROOT[0],ROOT[1]+22],[p[0],p[1]-22],s>=1,pv?i==4:false));
+if(s>=2)P2.forEach((p,i)=>ln([P1[4][0],P1[4][1]+22],[p[0],p[1]-22],true,pv?i==3:false));
+if(s>=3)P3.forEach((p,i)=>ln([P2[3][0],P2[3][1]+22],[p[0],p[1]-30],true,pv?i==6:false));
+box(ROOT,250,44,"Stark (MAX)",s>=5?"81.5":"?",true,pv,"#E0B45E");
+L1.forEach((d,i)=>box(P1[i],200,44,d[0],d[1],s>=1,s>=5?i==4:(s>=1?(s==1?i==4:false):false),"#6EC1DC"));
+if(s>=2)L2.forEach((d,i)=>box(P2[i],200,44,d[0],d[1],true,i==3,"#E8794A"));
+if(s>=3)L3.forEach((d,i)=>box(P3[i],145,60,d[0],d[1],true,i==6,"#6EC1DC"));
+x.textAlign="left";x.font="600 24px Segoe UI,Arial";x.fillStyle="#E0B45E";x.fillText("MAX · Stark",22,128+8);
+if(s>=2){x.fillStyle="#E8794A";x.fillText("MIN · Lannister",22,290+8)}
+if(s>=4){x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("land 56  +  armies 16.5  +  gold 30  +  path 13.5  −  enemy 34.5  =  81.5",22,474)}
+if(s==6){x.fillStyle="#E8794A";x.font="600 24px Segoe UI,Arial";x.textAlign="right";x.fillText("✂ 13 branches skipped",1080,474)}}
+draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" style="position:absolute; left:128px; top:440px; width:1100px; height:510px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:510px}</style></head><body><canvas id="c"></canvas><script>
+const W=1100,H=510,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const L1=[["Hold",68.5],["Pyke",79],["Riverrun",41.5],["The Wall",81],["The Twins",81.5]];
+const L2=[["Hold",87.5],["Lannisport",84],["Riverrun",85.5],["Oldtown",81.5]];
+const L3=[["Hold",68.5],["Pyke",79],["Riverrun",79.5],["Wall",81],["Oldtown",61],["Moat C.",81],["Highgarden",81.5]];
+const P1=L1.map((d,i)=>[120+i*215,205]),P2=L2.map((d,i)=>[380+i*215,290]),P3=L3.map((d,i)=>[85+i*155,385]),ROOT=[550,128];
+const N=[["Stark, turn 1: five possible moves. For each one, Minimax plays","Lannister's best reply, then Stark's best follow-up (depth 3)."],
+["Each move gets a score. Let's look inside The Twins to see","where its 81.5 comes from."],
+["Lannister has 4 replies. MIN assumes the reply that hurts","Stark most: min(87.5, 84, 85.5, 81.5) = Oldtown, 81.5."],
+["After Oldtown, Stark's best follow-up is Highgarden, scored","by the evaluation function V."],
+["V = land 56 + armies 16.5 + gold 30 + throne path 13.5","− enemy 34.5 = 81.5  (A* cost from The Twins is 3)."],
+["Back at the root: The Twins 81.5 beats The Wall 81, Pyke 79,","Hold 68.5, Riverrun 41.5 → Stark attacks The Twins."],
+["Whole search: 143 positions, 104 scored, 13 pruned by","alpha-beta. Same answer, less work."]];
+const s=2;
+function box(p,w,h,t,v,on,best,col){x.fillStyle=on?(best?"#3a2f12":"#12303a"):"#1b2731";x.fillRect(p[0]-w/2,p[1]-h/2,w,h);x.strokeStyle=best?"#E0B45E":(on?col:"rgba(195,205,207,.3)");x.lineWidth=best?4:2;x.strokeRect(p[0]-w/2,p[1]-h/2,w,h);
+x.fillStyle=on?"#F3EEE4":"#7D8C93";x.textAlign="center";x.font=(best?"600 ":"")+"24px Segoe UI,Arial";if(h>50){x.fillText(t,p[0],p[1]-4);x.fillText(on?v:"…",p[0],p[1]+24)}else x.fillText(t+"  "+(on?v:"…"),p[0],p[1]+8)}
+function ln(a,b,on,gold){x.strokeStyle=gold?"#E0B45E":(on?"rgba(110,193,220,.7)":"rgba(195,205,207,.18)");x.lineWidth=gold?4:2;x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);x.stroke()}
+function draw(){x.clearRect(0,0,W,H);x.textAlign="left";x.fillStyle="#F3EEE4";x.font="24px Segoe UI,Arial";x.fillText(N[s][0],22,36);x.fillText(N[s][1],22,68);
+const pv=s>=5;P1.forEach((p,i)=>ln([ROOT[0],ROOT[1]+22],[p[0],p[1]-22],s>=1,pv?i==4:false));
+if(s>=2)P2.forEach((p,i)=>ln([P1[4][0],P1[4][1]+22],[p[0],p[1]-22],true,pv?i==3:false));
+if(s>=3)P3.forEach((p,i)=>ln([P2[3][0],P2[3][1]+22],[p[0],p[1]-30],true,pv?i==6:false));
+box(ROOT,250,44,"Stark (MAX)",s>=5?"81.5":"?",true,pv,"#E0B45E");
+L1.forEach((d,i)=>box(P1[i],200,44,d[0],d[1],s>=1,s>=5?i==4:(s>=1?(s==1?i==4:false):false),"#6EC1DC"));
+if(s>=2)L2.forEach((d,i)=>box(P2[i],200,44,d[0],d[1],true,i==3,"#E8794A"));
+if(s>=3)L3.forEach((d,i)=>box(P3[i],145,60,d[0],d[1],true,i==6,"#6EC1DC"));
+x.textAlign="left";x.font="600 24px Segoe UI,Arial";x.fillStyle="#E0B45E";x.fillText("MAX · Stark",22,128+8);
+if(s>=2){x.fillStyle="#E8794A";x.fillText("MIN · Lannister",22,290+8)}
+if(s>=4){x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("land 56  +  armies 16.5  +  gold 30  +  path 13.5  −  enemy 34.5  =  81.5",22,474)}
+if(s==6){x.fillStyle="#E8794A";x.font="600 24px Segoe UI,Arial";x.textAlign="right";x.fillText("✂ 13 branches skipped",1080,474)}}
+draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" style="position:absolute; left:128px; top:440px; width:1100px; height:510px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:510px}</style></head><body><canvas id="c"></canvas><script>
+const W=1100,H=510,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const L1=[["Hold",68.5],["Pyke",79],["Riverrun",41.5],["The Wall",81],["The Twins",81.5]];
+const L2=[["Hold",87.5],["Lannisport",84],["Riverrun",85.5],["Oldtown",81.5]];
+const L3=[["Hold",68.5],["Pyke",79],["Riverrun",79.5],["Wall",81],["Oldtown",61],["Moat C.",81],["Highgarden",81.5]];
+const P1=L1.map((d,i)=>[120+i*215,205]),P2=L2.map((d,i)=>[380+i*215,290]),P3=L3.map((d,i)=>[85+i*155,385]),ROOT=[550,128];
+const N=[["Stark, turn 1: five possible moves. For each one, Minimax plays","Lannister's best reply, then Stark's best follow-up (depth 3)."],
+["Each move gets a score. Let's look inside The Twins to see","where its 81.5 comes from."],
+["Lannister has 4 replies. MIN assumes the reply that hurts","Stark most: min(87.5, 84, 85.5, 81.5) = Oldtown, 81.5."],
+["After Oldtown, Stark's best follow-up is Highgarden, scored","by the evaluation function V."],
+["V = land 56 + armies 16.5 + gold 30 + throne path 13.5","− enemy 34.5 = 81.5  (A* cost from The Twins is 3)."],
+["Back at the root: The Twins 81.5 beats The Wall 81, Pyke 79,","Hold 68.5, Riverrun 41.5 → Stark attacks The Twins."],
+["Whole search: 143 positions, 104 scored, 13 pruned by","alpha-beta. Same answer, less work."]];
+const s=3;
+function box(p,w,h,t,v,on,best,col){x.fillStyle=on?(best?"#3a2f12":"#12303a"):"#1b2731";x.fillRect(p[0]-w/2,p[1]-h/2,w,h);x.strokeStyle=best?"#E0B45E":(on?col:"rgba(195,205,207,.3)");x.lineWidth=best?4:2;x.strokeRect(p[0]-w/2,p[1]-h/2,w,h);
+x.fillStyle=on?"#F3EEE4":"#7D8C93";x.textAlign="center";x.font=(best?"600 ":"")+"24px Segoe UI,Arial";if(h>50){x.fillText(t,p[0],p[1]-4);x.fillText(on?v:"…",p[0],p[1]+24)}else x.fillText(t+"  "+(on?v:"…"),p[0],p[1]+8)}
+function ln(a,b,on,gold){x.strokeStyle=gold?"#E0B45E":(on?"rgba(110,193,220,.7)":"rgba(195,205,207,.18)");x.lineWidth=gold?4:2;x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);x.stroke()}
+function draw(){x.clearRect(0,0,W,H);x.textAlign="left";x.fillStyle="#F3EEE4";x.font="24px Segoe UI,Arial";x.fillText(N[s][0],22,36);x.fillText(N[s][1],22,68);
+const pv=s>=5;P1.forEach((p,i)=>ln([ROOT[0],ROOT[1]+22],[p[0],p[1]-22],s>=1,pv?i==4:false));
+if(s>=2)P2.forEach((p,i)=>ln([P1[4][0],P1[4][1]+22],[p[0],p[1]-22],true,pv?i==3:false));
+if(s>=3)P3.forEach((p,i)=>ln([P2[3][0],P2[3][1]+22],[p[0],p[1]-30],true,pv?i==6:false));
+box(ROOT,250,44,"Stark (MAX)",s>=5?"81.5":"?",true,pv,"#E0B45E");
+L1.forEach((d,i)=>box(P1[i],200,44,d[0],d[1],s>=1,s>=5?i==4:(s>=1?(s==1?i==4:false):false),"#6EC1DC"));
+if(s>=2)L2.forEach((d,i)=>box(P2[i],200,44,d[0],d[1],true,i==3,"#E8794A"));
+if(s>=3)L3.forEach((d,i)=>box(P3[i],145,60,d[0],d[1],true,i==6,"#6EC1DC"));
+x.textAlign="left";x.font="600 24px Segoe UI,Arial";x.fillStyle="#E0B45E";x.fillText("MAX · Stark",22,128+8);
+if(s>=2){x.fillStyle="#E8794A";x.fillText("MIN · Lannister",22,290+8)}
+if(s>=4){x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("land 56  +  armies 16.5  +  gold 30  +  path 13.5  −  enemy 34.5  =  81.5",22,474)}
+if(s==6){x.fillStyle="#E8794A";x.font="600 24px Segoe UI,Arial";x.textAlign="right";x.fillText("✂ 13 branches skipped",1080,474)}}
+draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" style="position:absolute; left:128px; top:440px; width:1100px; height:510px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:510px}</style></head><body><canvas id="c"></canvas><script>
+const W=1100,H=510,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const L1=[["Hold",68.5],["Pyke",79],["Riverrun",41.5],["The Wall",81],["The Twins",81.5]];
+const L2=[["Hold",87.5],["Lannisport",84],["Riverrun",85.5],["Oldtown",81.5]];
+const L3=[["Hold",68.5],["Pyke",79],["Riverrun",79.5],["Wall",81],["Oldtown",61],["Moat C.",81],["Highgarden",81.5]];
+const P1=L1.map((d,i)=>[120+i*215,205]),P2=L2.map((d,i)=>[380+i*215,290]),P3=L3.map((d,i)=>[85+i*155,385]),ROOT=[550,128];
+const N=[["Stark, turn 1: five possible moves. For each one, Minimax plays","Lannister's best reply, then Stark's best follow-up (depth 3)."],
+["Each move gets a score. Let's look inside The Twins to see","where its 81.5 comes from."],
+["Lannister has 4 replies. MIN assumes the reply that hurts","Stark most: min(87.5, 84, 85.5, 81.5) = Oldtown, 81.5."],
+["After Oldtown, Stark's best follow-up is Highgarden, scored","by the evaluation function V."],
+["V = land 56 + armies 16.5 + gold 30 + throne path 13.5","− enemy 34.5 = 81.5  (A* cost from The Twins is 3)."],
+["Back at the root: The Twins 81.5 beats The Wall 81, Pyke 79,","Hold 68.5, Riverrun 41.5 → Stark attacks The Twins."],
+["Whole search: 143 positions, 104 scored, 13 pruned by","alpha-beta. Same answer, less work."]];
+const s=4;
+function box(p,w,h,t,v,on,best,col){x.fillStyle=on?(best?"#3a2f12":"#12303a"):"#1b2731";x.fillRect(p[0]-w/2,p[1]-h/2,w,h);x.strokeStyle=best?"#E0B45E":(on?col:"rgba(195,205,207,.3)");x.lineWidth=best?4:2;x.strokeRect(p[0]-w/2,p[1]-h/2,w,h);
+x.fillStyle=on?"#F3EEE4":"#7D8C93";x.textAlign="center";x.font=(best?"600 ":"")+"24px Segoe UI,Arial";if(h>50){x.fillText(t,p[0],p[1]-4);x.fillText(on?v:"…",p[0],p[1]+24)}else x.fillText(t+"  "+(on?v:"…"),p[0],p[1]+8)}
+function ln(a,b,on,gold){x.strokeStyle=gold?"#E0B45E":(on?"rgba(110,193,220,.7)":"rgba(195,205,207,.18)");x.lineWidth=gold?4:2;x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);x.stroke()}
+function draw(){x.clearRect(0,0,W,H);x.textAlign="left";x.fillStyle="#F3EEE4";x.font="24px Segoe UI,Arial";x.fillText(N[s][0],22,36);x.fillText(N[s][1],22,68);
+const pv=s>=5;P1.forEach((p,i)=>ln([ROOT[0],ROOT[1]+22],[p[0],p[1]-22],s>=1,pv?i==4:false));
+if(s>=2)P2.forEach((p,i)=>ln([P1[4][0],P1[4][1]+22],[p[0],p[1]-22],true,pv?i==3:false));
+if(s>=3)P3.forEach((p,i)=>ln([P2[3][0],P2[3][1]+22],[p[0],p[1]-30],true,pv?i==6:false));
+box(ROOT,250,44,"Stark (MAX)",s>=5?"81.5":"?",true,pv,"#E0B45E");
+L1.forEach((d,i)=>box(P1[i],200,44,d[0],d[1],s>=1,s>=5?i==4:(s>=1?(s==1?i==4:false):false),"#6EC1DC"));
+if(s>=2)L2.forEach((d,i)=>box(P2[i],200,44,d[0],d[1],true,i==3,"#E8794A"));
+if(s>=3)L3.forEach((d,i)=>box(P3[i],145,60,d[0],d[1],true,i==6,"#6EC1DC"));
+x.textAlign="left";x.font="600 24px Segoe UI,Arial";x.fillStyle="#E0B45E";x.fillText("MAX · Stark",22,128+8);
+if(s>=2){x.fillStyle="#E8794A";x.fillText("MIN · Lannister",22,290+8)}
+if(s>=4){x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("land 56  +  armies 16.5  +  gold 30  +  path 13.5  −  enemy 34.5  =  81.5",22,474)}
+if(s==6){x.fillStyle="#E8794A";x.font="600 24px Segoe UI,Arial";x.textAlign="right";x.fillText("✂ 13 branches skipped",1080,474)}}
+draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" style="position:absolute; left:128px; top:440px; width:1100px; height:510px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:510px}</style></head><body><canvas id="c"></canvas><script>
+const W=1100,H=510,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const L1=[["Hold",68.5],["Pyke",79],["Riverrun",41.5],["The Wall",81],["The Twins",81.5]];
+const L2=[["Hold",87.5],["Lannisport",84],["Riverrun",85.5],["Oldtown",81.5]];
+const L3=[["Hold",68.5],["Pyke",79],["Riverrun",79.5],["Wall",81],["Oldtown",61],["Moat C.",81],["Highgarden",81.5]];
+const P1=L1.map((d,i)=>[120+i*215,205]),P2=L2.map((d,i)=>[380+i*215,290]),P3=L3.map((d,i)=>[85+i*155,385]),ROOT=[550,128];
+const N=[["Stark, turn 1: five possible moves. For each one, Minimax plays","Lannister's best reply, then Stark's best follow-up (depth 3)."],
+["Each move gets a score. Let's look inside The Twins to see","where its 81.5 comes from."],
+["Lannister has 4 replies. MIN assumes the reply that hurts","Stark most: min(87.5, 84, 85.5, 81.5) = Oldtown, 81.5."],
+["After Oldtown, Stark's best follow-up is Highgarden, scored","by the evaluation function V."],
+["V = land 56 + armies 16.5 + gold 30 + throne path 13.5","− enemy 34.5 = 81.5  (A* cost from The Twins is 3)."],
+["Back at the root: The Twins 81.5 beats The Wall 81, Pyke 79,","Hold 68.5, Riverrun 41.5 → Stark attacks The Twins."],
+["Whole search: 143 positions, 104 scored, 13 pruned by","alpha-beta. Same answer, less work."]];
+const s=5;
+function box(p,w,h,t,v,on,best,col){x.fillStyle=on?(best?"#3a2f12":"#12303a"):"#1b2731";x.fillRect(p[0]-w/2,p[1]-h/2,w,h);x.strokeStyle=best?"#E0B45E":(on?col:"rgba(195,205,207,.3)");x.lineWidth=best?4:2;x.strokeRect(p[0]-w/2,p[1]-h/2,w,h);
+x.fillStyle=on?"#F3EEE4":"#7D8C93";x.textAlign="center";x.font=(best?"600 ":"")+"24px Segoe UI,Arial";if(h>50){x.fillText(t,p[0],p[1]-4);x.fillText(on?v:"…",p[0],p[1]+24)}else x.fillText(t+"  "+(on?v:"…"),p[0],p[1]+8)}
+function ln(a,b,on,gold){x.strokeStyle=gold?"#E0B45E":(on?"rgba(110,193,220,.7)":"rgba(195,205,207,.18)");x.lineWidth=gold?4:2;x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);x.stroke()}
+function draw(){x.clearRect(0,0,W,H);x.textAlign="left";x.fillStyle="#F3EEE4";x.font="24px Segoe UI,Arial";x.fillText(N[s][0],22,36);x.fillText(N[s][1],22,68);
+const pv=s>=5;P1.forEach((p,i)=>ln([ROOT[0],ROOT[1]+22],[p[0],p[1]-22],s>=1,pv?i==4:false));
+if(s>=2)P2.forEach((p,i)=>ln([P1[4][0],P1[4][1]+22],[p[0],p[1]-22],true,pv?i==3:false));
+if(s>=3)P3.forEach((p,i)=>ln([P2[3][0],P2[3][1]+22],[p[0],p[1]-30],true,pv?i==6:false));
+box(ROOT,250,44,"Stark (MAX)",s>=5?"81.5":"?",true,pv,"#E0B45E");
+L1.forEach((d,i)=>box(P1[i],200,44,d[0],d[1],s>=1,s>=5?i==4:(s>=1?(s==1?i==4:false):false),"#6EC1DC"));
+if(s>=2)L2.forEach((d,i)=>box(P2[i],200,44,d[0],d[1],true,i==3,"#E8794A"));
+if(s>=3)L3.forEach((d,i)=>box(P3[i],145,60,d[0],d[1],true,i==6,"#6EC1DC"));
+x.textAlign="left";x.font="600 24px Segoe UI,Arial";x.fillStyle="#E0B45E";x.fillText("MAX · Stark",22,128+8);
+if(s>=2){x.fillStyle="#E8794A";x.fillText("MIN · Lannister",22,290+8)}
+if(s>=4){x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("land 56  +  armies 16.5  +  gold 30  +  path 13.5  −  enemy 34.5  =  81.5",22,474)}
+if(s==6){x.fillStyle="#E8794A";x.font="600 24px Segoe UI,Arial";x.textAlign="right";x.fillText("✂ 13 branches skipped",1080,474)}}
+draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" style="position:absolute; left:128px; top:440px; width:1100px; height:510px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:510px}</style></head><body><canvas id="c"></canvas><script>
+const W=1100,H=510,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const L1=[["Hold",68.5],["Pyke",79],["Riverrun",41.5],["The Wall",81],["The Twins",81.5]];
+const L2=[["Hold",87.5],["Lannisport",84],["Riverrun",85.5],["Oldtown",81.5]];
+const L3=[["Hold",68.5],["Pyke",79],["Riverrun",79.5],["Wall",81],["Oldtown",61],["Moat C.",81],["Highgarden",81.5]];
+const P1=L1.map((d,i)=>[120+i*215,205]),P2=L2.map((d,i)=>[380+i*215,290]),P3=L3.map((d,i)=>[85+i*155,385]),ROOT=[550,128];
+const N=[["Stark, turn 1: five possible moves. For each one, Minimax plays","Lannister's best reply, then Stark's best follow-up (depth 3)."],
+["Each move gets a score. Let's look inside The Twins to see","where its 81.5 comes from."],
+["Lannister has 4 replies. MIN assumes the reply that hurts","Stark most: min(87.5, 84, 85.5, 81.5) = Oldtown, 81.5."],
+["After Oldtown, Stark's best follow-up is Highgarden, scored","by the evaluation function V."],
+["V = land 56 + armies 16.5 + gold 30 + throne path 13.5","− enemy 34.5 = 81.5  (A* cost from The Twins is 3)."],
+["Back at the root: The Twins 81.5 beats The Wall 81, Pyke 79,","Hold 68.5, Riverrun 41.5 → Stark attacks The Twins."],
+["Whole search: 143 positions, 104 scored, 13 pruned by","alpha-beta. Same answer, less work."]];
+const s=6;
+function box(p,w,h,t,v,on,best,col){x.fillStyle=on?(best?"#3a2f12":"#12303a"):"#1b2731";x.fillRect(p[0]-w/2,p[1]-h/2,w,h);x.strokeStyle=best?"#E0B45E":(on?col:"rgba(195,205,207,.3)");x.lineWidth=best?4:2;x.strokeRect(p[0]-w/2,p[1]-h/2,w,h);
+x.fillStyle=on?"#F3EEE4":"#7D8C93";x.textAlign="center";x.font=(best?"600 ":"")+"24px Segoe UI,Arial";if(h>50){x.fillText(t,p[0],p[1]-4);x.fillText(on?v:"…",p[0],p[1]+24)}else x.fillText(t+"  "+(on?v:"…"),p[0],p[1]+8)}
+function ln(a,b,on,gold){x.strokeStyle=gold?"#E0B45E":(on?"rgba(110,193,220,.7)":"rgba(195,205,207,.18)");x.lineWidth=gold?4:2;x.beginPath();x.moveTo(a[0],a[1]);x.lineTo(b[0],b[1]);x.stroke()}
+function draw(){x.clearRect(0,0,W,H);x.textAlign="left";x.fillStyle="#F3EEE4";x.font="24px Segoe UI,Arial";x.fillText(N[s][0],22,36);x.fillText(N[s][1],22,68);
+const pv=s>=5;P1.forEach((p,i)=>ln([ROOT[0],ROOT[1]+22],[p[0],p[1]-22],s>=1,pv?i==4:false));
+if(s>=2)P2.forEach((p,i)=>ln([P1[4][0],P1[4][1]+22],[p[0],p[1]-22],true,pv?i==3:false));
+if(s>=3)P3.forEach((p,i)=>ln([P2[3][0],P2[3][1]+22],[p[0],p[1]-30],true,pv?i==6:false));
+box(ROOT,250,44,"Stark (MAX)",s>=5?"81.5":"?",true,pv,"#E0B45E");
+L1.forEach((d,i)=>box(P1[i],200,44,d[0],d[1],s>=1,s>=5?i==4:(s>=1?(s==1?i==4:false):false),"#6EC1DC"));
+if(s>=2)L2.forEach((d,i)=>box(P2[i],200,44,d[0],d[1],true,i==3,"#E8794A"));
+if(s>=3)L3.forEach((d,i)=>box(P3[i],145,60,d[0],d[1],true,i==6,"#6EC1DC"));
+x.textAlign="left";x.font="600 24px Segoe UI,Arial";x.fillStyle="#E0B45E";x.fillText("MAX · Stark",22,128+8);
+if(s>=2){x.fillStyle="#E8794A";x.fillText("MIN · Lannister",22,290+8)}
+if(s>=4){x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("land 56  +  armies 16.5  +  gold 30  +  path 13.5  −  enemy 34.5  =  81.5",22,474)}
+if(s==6){x.fillStyle="#E8794A";x.font="600 24px Segoe UI,Arial";x.textAlign="right";x.fillText("✂ 13 branches skipped",1080,474)}}
+draw();
+</script></body></html></x-embed>
+<aside>Click to advance: each click grows the tree one step. Real data: one of Stark’s two Decomposed 1v1 searches on the actual turn-1 board (vs Lannister), exported by visualize_trees.py from the game’s Minimax. In-game, Stark’s final scores also weigh the Targaryen search, which is why the hover tooltip shows 82.8 for The Twins. Both agree: attack The Twins. Alpha-beta never changes the result; with good move order it cuts O(b^d) toward O(b^(d/2)).</aside>
+</section>

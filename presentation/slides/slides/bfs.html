@@ -1,0 +1,80 @@
+<section id="bfs" data-transition="push">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<div class="head"><p class="eyebrow">Algorithm 1 · Breadth-First Search</p><h2>What can we reach in 3 marches?</h2></div>
+<div class="flowrow">
+<div class="node"><p class="label">📥 Takes</p><p class="s">map, capital, n_steps = 3</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="label">⚙️ Calculates</p><p class="s">queue, ring by ring: 1, 2, 3 steps, never twice</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="label">📤 Returns</p><p class="s">reachable holds → house.reachable_holds</p></div>
+</div>
+<div class="row">
+<div style="flex:0 0 1100px; height:500px"></div>
+<div class="col">
+<div class="callout why"><p class="ct">❓ Why BFS</p><p class="tx">Everything within a fixed number of steps, fewest operations, no weights needed.</p></div>
+<div class="callout tip"><p class="ct">🔎 Technical Note</p><p class="tx">Queue (FIFO), O(V + E), shortest step counts.</p></div>
+<div class="callout mistake"><p class="ct">⚠️ Mistake</p><p class="tx">BFS/DFS are scouting info; they don’t change Minimax or MCTS.</p></div>
+</div>
+</div>
+<x-embed style="position:absolute; left:128px; top:440px; width:1100px; height:500px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:500px}</style></head><body><canvas id="c"></canvas><script>
+const D=[["Wall",8,1,3,[4,5,10,1]],["C.Black",12,1,2,[0,5,11,12,6]],["Dreadfort",16,1,3,[6,7]],["Pyke",1,2,2,[8,9,4]],["Winterfell",5,2,3,[3,9,0,10]],["Moat C.",9,2,2,[0,10,11,1]],["W.Harbor",14,2,2,[1,12,2,7]],["Eyrie",17,3,3,[6,12,2,17,18]],["Lannisport",1,4,2,[3,13,9]],["Riverrun",4,4,2,[3,8,13,4,14,10]],["Twins",7,4,3,[4,9,14,0,5,15,11]],["K.Landing",10,4,3,[10,15,5,1,12,16]],["Harrenhal",13,4,1,[1,11,6,16,17,7]],["Casterly",2,6,2,[8,9,14]],["Oldtown",5,7,2,[13,9,10,15]],["Highgarden",8,6,2,[14,10,11,16]],["Dorne",12,7,2,[15,11,12,17]],["Storm's E.",15,6,2,[12,16,7,18]],["Dragonstone",18,6,4,[17,7]]];
+const W=1100,H=500,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const P=D.map(d=>[70+(d[1]-1)*(W-160)/17,150+(d[2]-1+(d[1]%2)*.5)*(H-200)/6.5]);
+const NAR=["Stark's turn starts: BFS scouts outward from Winterfell to see what lies within reach.","Ring 1: Pyke, Riverrun, The Wall and The Twins. These 4 neighbours can be attacked this turn.","Ring 2: 7 more holds, including King's Landing, only two marches away.","Ring 3: 15 holds in total, stored as house.reachable_holds and shown in the AI Brain panel."];
+const ring=D.map(()=>-1);ring[4]=0;let fr=[4];const cum=[1];
+for(let k=1;k!=4;k++){const n=[];fr.forEach(u=>D[u][4].forEach(v=>{if(ring[v]==-1){ring[v]=k;n.push(v)}}));cum.push(cum[k-1]+n.length);fr=n}
+const C=["#E0B45E","#6EC1DC","#E8794A","#8FD69B"];const t=0;
+function draw(){const s=Math.min(t,3);x.clearRect(0,0,W,H);
+D.forEach((d,u)=>d[4].forEach(v=>{if(v>u){const on=ring[u]>=0?(ring[v]>=0?(Math.max(ring[u],ring[v])>s?0:(Math.abs(ring[u]-ring[v])==1?1:0)):0):0;x.strokeStyle=on?C[Math.max(ring[u],ring[v])]:"rgba(195,205,207,.22)";x.lineWidth=on?4:2;x.beginPath();x.moveTo(P[u][0],P[u][1]);x.lineTo(P[v][0],P[v][1]);x.stroke()}}));
+D.forEach((d,i)=>{const r=ring[i],on=r>=0?(s>=r):false;x.fillStyle=on?C[r]:"#2B3B47";x.beginPath();x.arc(P[i][0],P[i][1],i==11?18:14,0,7);x.fill();x.fillStyle=on?"#F3EEE4":"#7D8C93";x.font=(i==11?"600 ":"")+"24px Segoe UI,Arial";x.textAlign="center";x.fillText(d[0],P[i][0],P[i][1]+38)});
+x.textAlign="left";x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.fillText("BFS from Winterfell · ring "+s+" · "+cum[s]+" holds reached",24,40);
+x.fillStyle="#F3EEE4";x.font="26px Segoe UI,Arial";x.fillText(NAR[s],24,80)}
+draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" data-fragment-index="1" style="position:absolute; left:128px; top:440px; width:1100px; height:500px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:500px}</style></head><body><canvas id="c"></canvas><script>
+const D=[["Wall",8,1,3,[4,5,10,1]],["C.Black",12,1,2,[0,5,11,12,6]],["Dreadfort",16,1,3,[6,7]],["Pyke",1,2,2,[8,9,4]],["Winterfell",5,2,3,[3,9,0,10]],["Moat C.",9,2,2,[0,10,11,1]],["W.Harbor",14,2,2,[1,12,2,7]],["Eyrie",17,3,3,[6,12,2,17,18]],["Lannisport",1,4,2,[3,13,9]],["Riverrun",4,4,2,[3,8,13,4,14,10]],["Twins",7,4,3,[4,9,14,0,5,15,11]],["K.Landing",10,4,3,[10,15,5,1,12,16]],["Harrenhal",13,4,1,[1,11,6,16,17,7]],["Casterly",2,6,2,[8,9,14]],["Oldtown",5,7,2,[13,9,10,15]],["Highgarden",8,6,2,[14,10,11,16]],["Dorne",12,7,2,[15,11,12,17]],["Storm's E.",15,6,2,[12,16,7,18]],["Dragonstone",18,6,4,[17,7]]];
+const W=1100,H=500,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const P=D.map(d=>[70+(d[1]-1)*(W-160)/17,150+(d[2]-1+(d[1]%2)*.5)*(H-200)/6.5]);
+const NAR=["Stark's turn starts: BFS scouts outward from Winterfell to see what lies within reach.","Ring 1: Pyke, Riverrun, The Wall and The Twins. These 4 neighbours can be attacked this turn.","Ring 2: 7 more holds, including King's Landing, only two marches away.","Ring 3: 15 holds in total, stored as house.reachable_holds and shown in the AI Brain panel."];
+const ring=D.map(()=>-1);ring[4]=0;let fr=[4];const cum=[1];
+for(let k=1;k!=4;k++){const n=[];fr.forEach(u=>D[u][4].forEach(v=>{if(ring[v]==-1){ring[v]=k;n.push(v)}}));cum.push(cum[k-1]+n.length);fr=n}
+const C=["#E0B45E","#6EC1DC","#E8794A","#8FD69B"];const t=1;
+function draw(){const s=Math.min(t,3);x.clearRect(0,0,W,H);
+D.forEach((d,u)=>d[4].forEach(v=>{if(v>u){const on=ring[u]>=0?(ring[v]>=0?(Math.max(ring[u],ring[v])>s?0:(Math.abs(ring[u]-ring[v])==1?1:0)):0):0;x.strokeStyle=on?C[Math.max(ring[u],ring[v])]:"rgba(195,205,207,.22)";x.lineWidth=on?4:2;x.beginPath();x.moveTo(P[u][0],P[u][1]);x.lineTo(P[v][0],P[v][1]);x.stroke()}}));
+D.forEach((d,i)=>{const r=ring[i],on=r>=0?(s>=r):false;x.fillStyle=on?C[r]:"#2B3B47";x.beginPath();x.arc(P[i][0],P[i][1],i==11?18:14,0,7);x.fill();x.fillStyle=on?"#F3EEE4":"#7D8C93";x.font=(i==11?"600 ":"")+"24px Segoe UI,Arial";x.textAlign="center";x.fillText(d[0],P[i][0],P[i][1]+38)});
+x.textAlign="left";x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.fillText("BFS from Winterfell · ring "+s+" · "+cum[s]+" holds reached",24,40);
+x.fillStyle="#F3EEE4";x.font="26px Segoe UI,Arial";x.fillText(NAR[s],24,80)}
+draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" data-fragment-index="2" style="position:absolute; left:128px; top:440px; width:1100px; height:500px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:500px}</style></head><body><canvas id="c"></canvas><script>
+const D=[["Wall",8,1,3,[4,5,10,1]],["C.Black",12,1,2,[0,5,11,12,6]],["Dreadfort",16,1,3,[6,7]],["Pyke",1,2,2,[8,9,4]],["Winterfell",5,2,3,[3,9,0,10]],["Moat C.",9,2,2,[0,10,11,1]],["W.Harbor",14,2,2,[1,12,2,7]],["Eyrie",17,3,3,[6,12,2,17,18]],["Lannisport",1,4,2,[3,13,9]],["Riverrun",4,4,2,[3,8,13,4,14,10]],["Twins",7,4,3,[4,9,14,0,5,15,11]],["K.Landing",10,4,3,[10,15,5,1,12,16]],["Harrenhal",13,4,1,[1,11,6,16,17,7]],["Casterly",2,6,2,[8,9,14]],["Oldtown",5,7,2,[13,9,10,15]],["Highgarden",8,6,2,[14,10,11,16]],["Dorne",12,7,2,[15,11,12,17]],["Storm's E.",15,6,2,[12,16,7,18]],["Dragonstone",18,6,4,[17,7]]];
+const W=1100,H=500,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const P=D.map(d=>[70+(d[1]-1)*(W-160)/17,150+(d[2]-1+(d[1]%2)*.5)*(H-200)/6.5]);
+const NAR=["Stark's turn starts: BFS scouts outward from Winterfell to see what lies within reach.","Ring 1: Pyke, Riverrun, The Wall and The Twins. These 4 neighbours can be attacked this turn.","Ring 2: 7 more holds, including King's Landing, only two marches away.","Ring 3: 15 holds in total, stored as house.reachable_holds and shown in the AI Brain panel."];
+const ring=D.map(()=>-1);ring[4]=0;let fr=[4];const cum=[1];
+for(let k=1;k!=4;k++){const n=[];fr.forEach(u=>D[u][4].forEach(v=>{if(ring[v]==-1){ring[v]=k;n.push(v)}}));cum.push(cum[k-1]+n.length);fr=n}
+const C=["#E0B45E","#6EC1DC","#E8794A","#8FD69B"];const t=2;
+function draw(){const s=Math.min(t,3);x.clearRect(0,0,W,H);
+D.forEach((d,u)=>d[4].forEach(v=>{if(v>u){const on=ring[u]>=0?(ring[v]>=0?(Math.max(ring[u],ring[v])>s?0:(Math.abs(ring[u]-ring[v])==1?1:0)):0):0;x.strokeStyle=on?C[Math.max(ring[u],ring[v])]:"rgba(195,205,207,.22)";x.lineWidth=on?4:2;x.beginPath();x.moveTo(P[u][0],P[u][1]);x.lineTo(P[v][0],P[v][1]);x.stroke()}}));
+D.forEach((d,i)=>{const r=ring[i],on=r>=0?(s>=r):false;x.fillStyle=on?C[r]:"#2B3B47";x.beginPath();x.arc(P[i][0],P[i][1],i==11?18:14,0,7);x.fill();x.fillStyle=on?"#F3EEE4":"#7D8C93";x.font=(i==11?"600 ":"")+"24px Segoe UI,Arial";x.textAlign="center";x.fillText(d[0],P[i][0],P[i][1]+38)});
+x.textAlign="left";x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.fillText("BFS from Winterfell · ring "+s+" · "+cum[s]+" holds reached",24,40);
+x.fillStyle="#F3EEE4";x.font="26px Segoe UI,Arial";x.fillText(NAR[s],24,80)}
+draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" data-fragment-index="3" style="position:absolute; left:128px; top:440px; width:1100px; height:500px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:500px}</style></head><body><canvas id="c"></canvas><script>
+const D=[["Wall",8,1,3,[4,5,10,1]],["C.Black",12,1,2,[0,5,11,12,6]],["Dreadfort",16,1,3,[6,7]],["Pyke",1,2,2,[8,9,4]],["Winterfell",5,2,3,[3,9,0,10]],["Moat C.",9,2,2,[0,10,11,1]],["W.Harbor",14,2,2,[1,12,2,7]],["Eyrie",17,3,3,[6,12,2,17,18]],["Lannisport",1,4,2,[3,13,9]],["Riverrun",4,4,2,[3,8,13,4,14,10]],["Twins",7,4,3,[4,9,14,0,5,15,11]],["K.Landing",10,4,3,[10,15,5,1,12,16]],["Harrenhal",13,4,1,[1,11,6,16,17,7]],["Casterly",2,6,2,[8,9,14]],["Oldtown",5,7,2,[13,9,10,15]],["Highgarden",8,6,2,[14,10,11,16]],["Dorne",12,7,2,[15,11,12,17]],["Storm's E.",15,6,2,[12,16,7,18]],["Dragonstone",18,6,4,[17,7]]];
+const W=1100,H=500,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const P=D.map(d=>[70+(d[1]-1)*(W-160)/17,150+(d[2]-1+(d[1]%2)*.5)*(H-200)/6.5]);
+const NAR=["Stark's turn starts: BFS scouts outward from Winterfell to see what lies within reach.","Ring 1: Pyke, Riverrun, The Wall and The Twins. These 4 neighbours can be attacked this turn.","Ring 2: 7 more holds, including King's Landing, only two marches away.","Ring 3: 15 holds in total, stored as house.reachable_holds and shown in the AI Brain panel."];
+const ring=D.map(()=>-1);ring[4]=0;let fr=[4];const cum=[1];
+for(let k=1;k!=4;k++){const n=[];fr.forEach(u=>D[u][4].forEach(v=>{if(ring[v]==-1){ring[v]=k;n.push(v)}}));cum.push(cum[k-1]+n.length);fr=n}
+const C=["#E0B45E","#6EC1DC","#E8794A","#8FD69B"];const t=3;
+function draw(){const s=Math.min(t,3);x.clearRect(0,0,W,H);
+D.forEach((d,u)=>d[4].forEach(v=>{if(v>u){const on=ring[u]>=0?(ring[v]>=0?(Math.max(ring[u],ring[v])>s?0:(Math.abs(ring[u]-ring[v])==1?1:0)):0):0;x.strokeStyle=on?C[Math.max(ring[u],ring[v])]:"rgba(195,205,207,.22)";x.lineWidth=on?4:2;x.beginPath();x.moveTo(P[u][0],P[u][1]);x.lineTo(P[v][0],P[v][1]);x.stroke()}}));
+D.forEach((d,i)=>{const r=ring[i],on=r>=0?(s>=r):false;x.fillStyle=on?C[r]:"#2B3B47";x.beginPath();x.arc(P[i][0],P[i][1],i==11?18:14,0,7);x.fill();x.fillStyle=on?"#F3EEE4":"#7D8C93";x.font=(i==11?"600 ":"")+"24px Segoe UI,Arial";x.textAlign="center";x.fillText(d[0],P[i][0],P[i][1]+38)});
+x.textAlign="left";x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.fillText("BFS from Winterfell · ring "+s+" · "+cum[s]+" holds reached",24,40);
+x.fillStyle="#F3EEE4";x.font="26px Segoe UI,Arial";x.fillText(NAR[s],24,80)}
+draw();
+</script></body></html></x-embed>
+<aside>Live: BFS runs on the real Westeros graph. Ring 1 → 5 holds, ring 2 → 12 (King’s Landing enters), ring 3 → 15. Then it restarts.</aside>
+</section>

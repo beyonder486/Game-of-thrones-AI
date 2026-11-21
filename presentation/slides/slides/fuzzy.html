@@ -1,0 +1,117 @@
+<section id="fuzzy" data-transition="push">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<div class="head"><p class="eyebrow">Algorithm 5 · Mamdani Fuzzy Logic</p><h2>Feelings about allies, as numbers</h2></div>
+<div class="flowrow">
+<div class="node"><p class="t">3 inputs</p><p class="s">0–100</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="t">Fuzzify</p><p class="s">Low · Med · High</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="t">6 rules</p><p class="s">AND = min()</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="t">Aggregate</p><p class="s">max()</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="t">Centroid</p><p class="s">one number</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node blue"><p class="t">→ MCTS bias</p><p class="s">never final</p></div>
+</div>
+<div class="row">
+<div style="flex:0 0 1100px; height:500px"></div>
+<div class="col">
+<div class="callout tip"><p class="ct">📥 Inputs</p><p class="tx">Strength = (armies + Σ defense) × 2.5, max 100 · Weakness = 100 − own strength · Trust 0–100</p></div>
+<div class="callout why"><p class="ct">❓ Why Fuzzy</p><p class="tx">No brittle cut-offs like “weak if armies &lt; 10”; inputs blend smoothly, as humans reason.</p></div>
+</div>
+</div>
+<x-embed style="position:absolute; left:128px; top:440px; width:1100px; height:500px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:500px}</style></head><body><canvas id="c"></canvas><script>
+const W=1100,H=500,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+function tri(a,b,cc,v){if(a==b){if(a>=v)return 1}if(b==cc){if(v>=cc)return 1}if(v==b)return 1;if(a!=b){if(v>a?b>v:false)return(v-a)/(b-a)}if(b!=cc){if(v>b?cc>v:false)return(cc-v)/(cc-b)}return 0}
+const LO=[0,0,60],ME=[20,50,80],HI=[40,100,100],m=(s,v)=>tri(s[0],s[1],s[2],v);
+function fz(e,w,t){const r1=Math.min(m(HI,e),m(HI,w)),r2=Math.min(m(LO,t),m(ME,e)),r3=Math.min(m(LO,w),m(LO,e)),r4=Math.min(m(LO,w),m(HI,t)),r5=Math.min(m(HI,e),m(HI,t)),r6=m(LO,t);
+const A=[0,0],B=[0,0],S=[0,0];for(let u=0;u!=101;u++){const a=Math.max(Math.min(r2,m(LO,u)),Math.min(r5,m(ME,u)),Math.min(r1,m(HI,u))),b=Math.max(Math.min(r6,m(ME,u)),Math.min(r3,m(HI,u))),s=Math.min(r4,m(HI,u));A[0]+=u*a;A[1]+=a;B[0]+=u*b;B[1]+=b;S[0]+=u*s;S[1]+=s}
+const cn=v=>v[1]>1e-9?Math.round(v[0]/v[1])/100:0;return[cn(A),cn(B),cn(S)]}
+const SIT=[["Weak house vs a giant",100,80,50,"Few armies (weakness 80) against rivals at full strength: rule 1 fires, alliance HIGH."],["Weak, trusted partner",100,80,80,"Same danger, but trust 80: rule 6 (trust LOW) stops firing, so betrayal drops to 0."],["Dominant, low trust",30,10,20,"Strong house, weak rivals, trust 20: rule 3 fires, betrayal HIGH."],["Balanced, high trust",60,40,90,"Healthy house, trust 90: rule 4 fires, solo HIGH. No need for help, no reason to stab."]];
+const k=0,f=0;let cur=SIT[0].slice(1,4);const X0=60,X1=600,Y0=130,Y1=400,px=v=>X0+(X1-X0)*v/100,py=v=>Y1-(Y1-Y0)*v;
+function tri3(s,col){x.strokeStyle=col;x.lineWidth=4;x.beginPath();for(let u=0;u!=101;u++){const X=px(u),Y=py(m(s,u));if(u)x.lineTo(X,Y);else x.moveTo(X,Y)}x.stroke()}
+function draw(){x.clearRect(0,0,W,H);const s=SIT[k];
+x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.textAlign="left";x.fillText("Live inference · "+s[0],24,40);x.fillStyle="#F3EEE4";x.font="24px Segoe UI,Arial";x.fillText(s[4],24,76);
+x.strokeStyle="rgba(195,205,207,.35)";x.lineWidth=2;x.beginPath();x.moveTo(X0,Y1);x.lineTo(X1,Y1);x.stroke();
+tri3(LO,"#6EC1DC");tri3(ME,"#E0B45E");tri3(HI,"#E8794A");
+x.font="24px Segoe UI,Arial";x.fillStyle="#C3CDCF";x.textAlign="center";[0,20,40,60,80,100].forEach(v=>x.fillText(v,px(v),Y1+32));
+x.textAlign="left";x.fillStyle="#6EC1DC";x.fillText("Low",X0,Y1+72);x.fillStyle="#E0B45E";x.fillText("Medium",X0+90,Y1+72);x.fillStyle="#E8794A";x.fillText("High",X0+220,Y1+72);
+const lab=["Enemy","Weak","Trust"],lc=["#F3EEE4","#B8C7D9","#8FD69B"];
+cur.forEach((v,i)=>{x.setLineDash([8,6]);x.strokeStyle=lc[i];x.lineWidth=3;x.beginPath();x.moveTo(px(v),Y0-10);x.lineTo(px(v),Y1);x.stroke();x.setLineDash([]);x.fillStyle=lc[i];x.font="600 24px Segoe UI,Arial";x.textAlign=v>70?"right":"left";x.fillText(lab[i]+" "+Math.round(v),px(v)+(v>70?-8:8),Y0+20+i*30)});
+const o=fz(cur[0],cur[1],cur[2]),on=["Alliance","Betrayal","Solo"],oc=["#8FD69B","#E8794A","#6EC1DC"],top=o.indexOf(Math.max(...o));
+x.textAlign="left";o.forEach((v,i)=>{const y=150+i*110;x.fillStyle=i==top?oc[i]:"#F3EEE4";x.font=(i==top?"600 ":"")+"26px Segoe UI,Arial";x.fillText(on[i]+"  "+v.toFixed(2)+(i==top?"  ◀ top":""),680,y);
+x.fillStyle="rgba(255,255,255,.08)";x.fillRect(680,y+14,380,26);x.fillStyle=oc[i];x.fillRect(680,y+14,380*v,26)})}
+draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" data-fragment-index="1" style="position:absolute; left:128px; top:440px; width:1100px; height:500px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:500px}</style></head><body><canvas id="c"></canvas><script>
+const W=1100,H=500,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+function tri(a,b,cc,v){if(a==b){if(a>=v)return 1}if(b==cc){if(v>=cc)return 1}if(v==b)return 1;if(a!=b){if(v>a?b>v:false)return(v-a)/(b-a)}if(b!=cc){if(v>b?cc>v:false)return(cc-v)/(cc-b)}return 0}
+const LO=[0,0,60],ME=[20,50,80],HI=[40,100,100],m=(s,v)=>tri(s[0],s[1],s[2],v);
+function fz(e,w,t){const r1=Math.min(m(HI,e),m(HI,w)),r2=Math.min(m(LO,t),m(ME,e)),r3=Math.min(m(LO,w),m(LO,e)),r4=Math.min(m(LO,w),m(HI,t)),r5=Math.min(m(HI,e),m(HI,t)),r6=m(LO,t);
+const A=[0,0],B=[0,0],S=[0,0];for(let u=0;u!=101;u++){const a=Math.max(Math.min(r2,m(LO,u)),Math.min(r5,m(ME,u)),Math.min(r1,m(HI,u))),b=Math.max(Math.min(r6,m(ME,u)),Math.min(r3,m(HI,u))),s=Math.min(r4,m(HI,u));A[0]+=u*a;A[1]+=a;B[0]+=u*b;B[1]+=b;S[0]+=u*s;S[1]+=s}
+const cn=v=>v[1]>1e-9?Math.round(v[0]/v[1])/100:0;return[cn(A),cn(B),cn(S)]}
+const SIT=[["Weak house vs a giant",100,80,50,"Few armies (weakness 80) against rivals at full strength: rule 1 fires, alliance HIGH."],["Weak, trusted partner",100,80,80,"Same danger, but trust 80: rule 6 (trust LOW) stops firing, so betrayal drops to 0."],["Dominant, low trust",30,10,20,"Strong house, weak rivals, trust 20: rule 3 fires, betrayal HIGH."],["Balanced, high trust",60,40,90,"Healthy house, trust 90: rule 4 fires, solo HIGH. No need for help, no reason to stab."]];
+const k=1,f=0;let cur=SIT[1].slice(1,4);const X0=60,X1=600,Y0=130,Y1=400,px=v=>X0+(X1-X0)*v/100,py=v=>Y1-(Y1-Y0)*v;
+function tri3(s,col){x.strokeStyle=col;x.lineWidth=4;x.beginPath();for(let u=0;u!=101;u++){const X=px(u),Y=py(m(s,u));if(u)x.lineTo(X,Y);else x.moveTo(X,Y)}x.stroke()}
+function draw(){x.clearRect(0,0,W,H);const s=SIT[k];
+x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.textAlign="left";x.fillText("Live inference · "+s[0],24,40);x.fillStyle="#F3EEE4";x.font="24px Segoe UI,Arial";x.fillText(s[4],24,76);
+x.strokeStyle="rgba(195,205,207,.35)";x.lineWidth=2;x.beginPath();x.moveTo(X0,Y1);x.lineTo(X1,Y1);x.stroke();
+tri3(LO,"#6EC1DC");tri3(ME,"#E0B45E");tri3(HI,"#E8794A");
+x.font="24px Segoe UI,Arial";x.fillStyle="#C3CDCF";x.textAlign="center";[0,20,40,60,80,100].forEach(v=>x.fillText(v,px(v),Y1+32));
+x.textAlign="left";x.fillStyle="#6EC1DC";x.fillText("Low",X0,Y1+72);x.fillStyle="#E0B45E";x.fillText("Medium",X0+90,Y1+72);x.fillStyle="#E8794A";x.fillText("High",X0+220,Y1+72);
+const lab=["Enemy","Weak","Trust"],lc=["#F3EEE4","#B8C7D9","#8FD69B"];
+cur.forEach((v,i)=>{x.setLineDash([8,6]);x.strokeStyle=lc[i];x.lineWidth=3;x.beginPath();x.moveTo(px(v),Y0-10);x.lineTo(px(v),Y1);x.stroke();x.setLineDash([]);x.fillStyle=lc[i];x.font="600 24px Segoe UI,Arial";x.textAlign=v>70?"right":"left";x.fillText(lab[i]+" "+Math.round(v),px(v)+(v>70?-8:8),Y0+20+i*30)});
+const o=fz(cur[0],cur[1],cur[2]),on=["Alliance","Betrayal","Solo"],oc=["#8FD69B","#E8794A","#6EC1DC"],top=o.indexOf(Math.max(...o));
+x.textAlign="left";o.forEach((v,i)=>{const y=150+i*110;x.fillStyle=i==top?oc[i]:"#F3EEE4";x.font=(i==top?"600 ":"")+"26px Segoe UI,Arial";x.fillText(on[i]+"  "+v.toFixed(2)+(i==top?"  ◀ top":""),680,y);
+x.fillStyle="rgba(255,255,255,.08)";x.fillRect(680,y+14,380,26);x.fillStyle=oc[i];x.fillRect(680,y+14,380*v,26)})}
+draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" data-fragment-index="2" style="position:absolute; left:128px; top:440px; width:1100px; height:500px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:500px}</style></head><body><canvas id="c"></canvas><script>
+const W=1100,H=500,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+function tri(a,b,cc,v){if(a==b){if(a>=v)return 1}if(b==cc){if(v>=cc)return 1}if(v==b)return 1;if(a!=b){if(v>a?b>v:false)return(v-a)/(b-a)}if(b!=cc){if(v>b?cc>v:false)return(cc-v)/(cc-b)}return 0}
+const LO=[0,0,60],ME=[20,50,80],HI=[40,100,100],m=(s,v)=>tri(s[0],s[1],s[2],v);
+function fz(e,w,t){const r1=Math.min(m(HI,e),m(HI,w)),r2=Math.min(m(LO,t),m(ME,e)),r3=Math.min(m(LO,w),m(LO,e)),r4=Math.min(m(LO,w),m(HI,t)),r5=Math.min(m(HI,e),m(HI,t)),r6=m(LO,t);
+const A=[0,0],B=[0,0],S=[0,0];for(let u=0;u!=101;u++){const a=Math.max(Math.min(r2,m(LO,u)),Math.min(r5,m(ME,u)),Math.min(r1,m(HI,u))),b=Math.max(Math.min(r6,m(ME,u)),Math.min(r3,m(HI,u))),s=Math.min(r4,m(HI,u));A[0]+=u*a;A[1]+=a;B[0]+=u*b;B[1]+=b;S[0]+=u*s;S[1]+=s}
+const cn=v=>v[1]>1e-9?Math.round(v[0]/v[1])/100:0;return[cn(A),cn(B),cn(S)]}
+const SIT=[["Weak house vs a giant",100,80,50,"Few armies (weakness 80) against rivals at full strength: rule 1 fires, alliance HIGH."],["Weak, trusted partner",100,80,80,"Same danger, but trust 80: rule 6 (trust LOW) stops firing, so betrayal drops to 0."],["Dominant, low trust",30,10,20,"Strong house, weak rivals, trust 20: rule 3 fires, betrayal HIGH."],["Balanced, high trust",60,40,90,"Healthy house, trust 90: rule 4 fires, solo HIGH. No need for help, no reason to stab."]];
+const k=2,f=0;let cur=SIT[2].slice(1,4);const X0=60,X1=600,Y0=130,Y1=400,px=v=>X0+(X1-X0)*v/100,py=v=>Y1-(Y1-Y0)*v;
+function tri3(s,col){x.strokeStyle=col;x.lineWidth=4;x.beginPath();for(let u=0;u!=101;u++){const X=px(u),Y=py(m(s,u));if(u)x.lineTo(X,Y);else x.moveTo(X,Y)}x.stroke()}
+function draw(){x.clearRect(0,0,W,H);const s=SIT[k];
+x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.textAlign="left";x.fillText("Live inference · "+s[0],24,40);x.fillStyle="#F3EEE4";x.font="24px Segoe UI,Arial";x.fillText(s[4],24,76);
+x.strokeStyle="rgba(195,205,207,.35)";x.lineWidth=2;x.beginPath();x.moveTo(X0,Y1);x.lineTo(X1,Y1);x.stroke();
+tri3(LO,"#6EC1DC");tri3(ME,"#E0B45E");tri3(HI,"#E8794A");
+x.font="24px Segoe UI,Arial";x.fillStyle="#C3CDCF";x.textAlign="center";[0,20,40,60,80,100].forEach(v=>x.fillText(v,px(v),Y1+32));
+x.textAlign="left";x.fillStyle="#6EC1DC";x.fillText("Low",X0,Y1+72);x.fillStyle="#E0B45E";x.fillText("Medium",X0+90,Y1+72);x.fillStyle="#E8794A";x.fillText("High",X0+220,Y1+72);
+const lab=["Enemy","Weak","Trust"],lc=["#F3EEE4","#B8C7D9","#8FD69B"];
+cur.forEach((v,i)=>{x.setLineDash([8,6]);x.strokeStyle=lc[i];x.lineWidth=3;x.beginPath();x.moveTo(px(v),Y0-10);x.lineTo(px(v),Y1);x.stroke();x.setLineDash([]);x.fillStyle=lc[i];x.font="600 24px Segoe UI,Arial";x.textAlign=v>70?"right":"left";x.fillText(lab[i]+" "+Math.round(v),px(v)+(v>70?-8:8),Y0+20+i*30)});
+const o=fz(cur[0],cur[1],cur[2]),on=["Alliance","Betrayal","Solo"],oc=["#8FD69B","#E8794A","#6EC1DC"],top=o.indexOf(Math.max(...o));
+x.textAlign="left";o.forEach((v,i)=>{const y=150+i*110;x.fillStyle=i==top?oc[i]:"#F3EEE4";x.font=(i==top?"600 ":"")+"26px Segoe UI,Arial";x.fillText(on[i]+"  "+v.toFixed(2)+(i==top?"  ◀ top":""),680,y);
+x.fillStyle="rgba(255,255,255,.08)";x.fillRect(680,y+14,380,26);x.fillStyle=oc[i];x.fillRect(680,y+14,380*v,26)})}
+draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" data-fragment-index="3" style="position:absolute; left:128px; top:440px; width:1100px; height:500px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1100px;height:500px}</style></head><body><canvas id="c"></canvas><script>
+const W=1100,H=500,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+function tri(a,b,cc,v){if(a==b){if(a>=v)return 1}if(b==cc){if(v>=cc)return 1}if(v==b)return 1;if(a!=b){if(v>a?b>v:false)return(v-a)/(b-a)}if(b!=cc){if(v>b?cc>v:false)return(cc-v)/(cc-b)}return 0}
+const LO=[0,0,60],ME=[20,50,80],HI=[40,100,100],m=(s,v)=>tri(s[0],s[1],s[2],v);
+function fz(e,w,t){const r1=Math.min(m(HI,e),m(HI,w)),r2=Math.min(m(LO,t),m(ME,e)),r3=Math.min(m(LO,w),m(LO,e)),r4=Math.min(m(LO,w),m(HI,t)),r5=Math.min(m(HI,e),m(HI,t)),r6=m(LO,t);
+const A=[0,0],B=[0,0],S=[0,0];for(let u=0;u!=101;u++){const a=Math.max(Math.min(r2,m(LO,u)),Math.min(r5,m(ME,u)),Math.min(r1,m(HI,u))),b=Math.max(Math.min(r6,m(ME,u)),Math.min(r3,m(HI,u))),s=Math.min(r4,m(HI,u));A[0]+=u*a;A[1]+=a;B[0]+=u*b;B[1]+=b;S[0]+=u*s;S[1]+=s}
+const cn=v=>v[1]>1e-9?Math.round(v[0]/v[1])/100:0;return[cn(A),cn(B),cn(S)]}
+const SIT=[["Weak house vs a giant",100,80,50,"Few armies (weakness 80) against rivals at full strength: rule 1 fires, alliance HIGH."],["Weak, trusted partner",100,80,80,"Same danger, but trust 80: rule 6 (trust LOW) stops firing, so betrayal drops to 0."],["Dominant, low trust",30,10,20,"Strong house, weak rivals, trust 20: rule 3 fires, betrayal HIGH."],["Balanced, high trust",60,40,90,"Healthy house, trust 90: rule 4 fires, solo HIGH. No need for help, no reason to stab."]];
+const k=3,f=0;let cur=SIT[3].slice(1,4);const X0=60,X1=600,Y0=130,Y1=400,px=v=>X0+(X1-X0)*v/100,py=v=>Y1-(Y1-Y0)*v;
+function tri3(s,col){x.strokeStyle=col;x.lineWidth=4;x.beginPath();for(let u=0;u!=101;u++){const X=px(u),Y=py(m(s,u));if(u)x.lineTo(X,Y);else x.moveTo(X,Y)}x.stroke()}
+function draw(){x.clearRect(0,0,W,H);const s=SIT[k];
+x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.textAlign="left";x.fillText("Live inference · "+s[0],24,40);x.fillStyle="#F3EEE4";x.font="24px Segoe UI,Arial";x.fillText(s[4],24,76);
+x.strokeStyle="rgba(195,205,207,.35)";x.lineWidth=2;x.beginPath();x.moveTo(X0,Y1);x.lineTo(X1,Y1);x.stroke();
+tri3(LO,"#6EC1DC");tri3(ME,"#E0B45E");tri3(HI,"#E8794A");
+x.font="24px Segoe UI,Arial";x.fillStyle="#C3CDCF";x.textAlign="center";[0,20,40,60,80,100].forEach(v=>x.fillText(v,px(v),Y1+32));
+x.textAlign="left";x.fillStyle="#6EC1DC";x.fillText("Low",X0,Y1+72);x.fillStyle="#E0B45E";x.fillText("Medium",X0+90,Y1+72);x.fillStyle="#E8794A";x.fillText("High",X0+220,Y1+72);
+const lab=["Enemy","Weak","Trust"],lc=["#F3EEE4","#B8C7D9","#8FD69B"];
+cur.forEach((v,i)=>{x.setLineDash([8,6]);x.strokeStyle=lc[i];x.lineWidth=3;x.beginPath();x.moveTo(px(v),Y0-10);x.lineTo(px(v),Y1);x.stroke();x.setLineDash([]);x.fillStyle=lc[i];x.font="600 24px Segoe UI,Arial";x.textAlign=v>70?"right":"left";x.fillText(lab[i]+" "+Math.round(v),px(v)+(v>70?-8:8),Y0+20+i*30)});
+const o=fz(cur[0],cur[1],cur[2]),on=["Alliance","Betrayal","Solo"],oc=["#8FD69B","#E8794A","#6EC1DC"],top=o.indexOf(Math.max(...o));
+x.textAlign="left";o.forEach((v,i)=>{const y=150+i*110;x.fillStyle=i==top?oc[i]:"#F3EEE4";x.font=(i==top?"600 ":"")+"26px Segoe UI,Arial";x.fillText(on[i]+"  "+v.toFixed(2)+(i==top?"  ◀ top":""),680,y);
+x.fillStyle="rgba(255,255,255,.08)";x.fillRect(680,y+14,380,26);x.fillStyle=oc[i];x.fillRect(680,y+14,380*v,26)})}
+draw();
+</script></body></html></x-embed>
+<aside>Live: the same Mamdani engine as the game, ported line by line. Inputs glide between the four situations and the three scores are recomputed every frame; at rest they match the game exactly (0.73/0.50/0.00, 0.65/0/0, 0.25/0.62/0, 0.50/0/0.75).</aside>
+</section>
