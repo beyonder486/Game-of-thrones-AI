@@ -1,0 +1,29 @@
+<section id="dfs" data-transition="push">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<img class="mascot" src="/_blob/40d09bad2f30fd1ade80fa5adce365a9" alt="" style="width:170px; height:140px; top:8px">
+<div class="head"><p class="eyebrow">Algorithm 2 · Depth-First Search</p><h2>Which expansion corridors exist?</h2></div>
+<div class="flowrow">
+<div class="node"><p class="label">📥 Takes</p><p class="s">map, capital, depth_limit = 3</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="label">⚙️ Calculates</p><p class="s">go deep, then backtrack; no hold twice on a path</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="label">📤 Returns</p><p class="s">paths ending in a neutral or weak hold (defense &lt; 2)</p></div>
+</div>
+<div class="row">
+<div class="col fragment" style="gap:12px">
+<p class="label">Situation · from Winterfell, depth 3</p>
+<div class="flowrow"><div class="node fixed"><p class="t">Winterfell</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="node"><p class="t">Pyke</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="node"><p class="t">Lannisport</p></div><x-shape kind="arrow-right" class="arr"></x-shape><div class="node"><p class="t">Casterly Rock</p></div></div>
+<p class="note">↩ backtrack and try the next branch … <b>64</b> cycle-free corridors in total.</p>
+</div>
+<table class="fragment" style="flex:0 0 620px">
+<tr><th style="width:34%"></th><th>BFS</th><th>DFS</th></tr>
+<tr><td>Answers</td><td>How far?</td><td>Which routes?</td></tr>
+<tr><td>Uses</td><td>Queue</td><td>Stack</td></tr>
+<tr><td>Output</td><td>Set of holds</td><td>Whole paths</td></tr>
+</table>
+</div>
+<div class="row">
+<div class="callout why"><p class="ct">❓ Why DFS</p><p class="tx">Lists whole multi-step routes, not just distances, with very little memory.</p></div>
+<div class="callout tip"><p class="ct">🔎 Technical Note</p><p class="tx">DFS memory is O(depth) vs BFS’s O(frontier width).</p></div>
+</div>
+</section>

@@ -1,0 +1,25 @@
+<section id="overview" data-transition="fade">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<img class="mascot" src="/_blob/22bb6628f1311a35b6ac067c49957008" alt="">
+<div class="head"><p class="eyebrow">The Game</p><h2>A strategy game where AI plays every house</h2></div>
+<div class="row">
+<div class="card rise" style="--i:0"><p class="big">19</p><h3>Holds</h3><p>21 × 8 hex map. Neighbours = coloured regions that touch.</p></div>
+<div class="card rise" style="--i:1"><p class="big">3</p><h3>Great Houses</h3><p>Stark, Lannister, Targaryen. Order shuffled each game.</p></div>
+<div class="card rise" style="--i:2"><p class="big">1</p><h3>Move per turn</h3><p>Attack one hold, betray and strike, or hold.</p></div>
+<div class="card ember rise" style="--i:3"><p class="big">2</p><h3>Ways to win</h3><p>Hold King’s Landing at round end, or be the last house with land.</p></div>
+</div>
+<div class="flowrow fragment">
+<div class="node fixed"><p class="t">Round ends</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node dec"><p class="t">Holds King’s Landing?</p><p class="s">yes → Iron Throne win</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node dec"><p class="t">Only one house has land?</p><p class="s">yes → Elimination win</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node fixed"><p class="t">Next round</p></div>
+</div>
+<div class="row fragment">
+<div class="callout"><p class="ct">💡 Key Insight</p><p class="tx">The winner is checked after the whole round, so rivals later in the round get one last chance to retake the throne.</p></div>
+<div class="callout mistake"><p class="ct">⚠️ Common Mistake</p><p class="tx">Allies never share gold or armies. An alliance is only a non-aggression pact.</p></div>
+</div>
+<aside>The randomized turn order keeps the game fair; in 8 simulated games the wins split 3 / 3 / 2.</aside>
+</section>

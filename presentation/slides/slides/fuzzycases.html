@@ -1,0 +1,18 @@
+<section id="fuzzycases" data-transition="fade">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<img class="mascot" src="/_blob/40d09bad2f30fd1ade80fa5adce365a9" alt="" style="width:170px; height:140px; top:8px">
+<div class="head"><p class="eyebrow">Fuzzy Logic · Situations</p><h2>Same rules, different moods</h2></div>
+<table>
+<tr><th style="width:34%">Situation</th><th>Enemy</th><th>Weak</th><th>Trust</th><th>Alliance</th><th>Betrayal</th><th>Solo</th></tr>
+<tr><td>Weak house vs a giant</td><td>100</td><td>80</td><td>50</td><td>0.73 · top</td><td>0.50</td><td>0.00</td></tr>
+<tr><td>Weak, trusted partner</td><td>100</td><td>80</td><td>80</td><td>0.65 · top</td><td>0.00</td><td>0.00</td></tr>
+<tr><td>Dominant, low trust</td><td>30</td><td>10</td><td>20</td><td>0.25</td><td>0.62 · top</td><td>0.00</td></tr>
+<tr><td>Balanced, high trust</td><td>60</td><td>40</td><td>90</td><td>0.50</td><td>0.00</td><td>0.75 · top</td></tr>
+</table>
+<div class="row">
+<div class="card fragment"><p>A weak house facing a giant wants an ally.</p></div>
+<div class="card ember fragment"><p>A dominant house that trusts no one leans toward betrayal.</p></div>
+<div class="card blue fragment"><p>A balanced house with trust goes solo; no reason to stab.</p></div>
+</div>
+<aside>All values computed by running evaluate_diplomacy() from the game code.</aside>
+</section>

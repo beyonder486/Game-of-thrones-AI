@@ -1,0 +1,22 @@
+<section id="fuzzyrules" data-transition="fade">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<img class="mascot" src="/_blob/5efc1e5cf5122fc928dd4d32e0469200" alt="" style="width:170px; height:127px; top:14px">
+<div class="head"><p class="eyebrow">Fuzzy Logic · Rules</p><h2>Six rules, two contexts</h2></div>
+<div class="row">
+<table style="flex:0 0 1000px">
+<tr><th style="width:8%">#</th><th style="width:56%">IF</th><th>THEN</th></tr>
+<tr><td>1</td><td>Enemy HIGH ∧ Weakness HIGH</td><td>Alliance HIGH</td></tr>
+<tr><td>2</td><td>Trust LOW ∧ Enemy MEDIUM</td><td>Alliance LOW</td></tr>
+<tr><td>3</td><td>Weakness LOW ∧ Enemy LOW</td><td>Betrayal HIGH</td></tr>
+<tr style="background:#1E3446"><td>4</td><td>Weakness LOW ∧ Trust HIGH</td><td>Solo HIGH</td></tr>
+<tr><td>5</td><td>Enemy HIGH ∧ Trust HIGH</td><td>Alliance MEDIUM</td></tr>
+<tr><td>6</td><td>Trust LOW</td><td>Betrayal MEDIUM</td></tr>
+</table>
+<div class="col">
+<div class="node fragment"><p class="label">Context A · own diplomacy</p><p class="s">Enemy = both rivals combined · Trust = average toward rivals</p></div>
+<div class="node blue fragment"><p class="label" style="color:var(--blue)">Context B · incoming offer</p><p class="s">Enemy = the third house · Trust = toward the sender</p></div>
+<div class="callout mistake fragment"><p class="ct">⚠️ Common Mistake</p><p class="tx">Solo has only rule 4, so it is either 0 or about 0.70–0.80, never in between.</p></div>
+</div>
+</div>
+<div class="callout"><p class="ct">💡 Key Insight</p><p class="tx">Membership sets: Low (0, 0, 60) · Medium (20, 50, 80) · High (40, 100, 100), the same for every input and output.</p></div>
+</section>

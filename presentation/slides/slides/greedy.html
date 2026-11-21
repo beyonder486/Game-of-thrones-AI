@@ -1,0 +1,28 @@
+<section id="greedy" data-transition="push">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<img class="mascot" src="/_blob/22bb6628f1311a35b6ac067c49957008" alt="">
+<div class="head"><p class="eyebrow">Algorithm 3 · Greedy Search</p><h2>Take the best-looking hold right now</h2></div>
+<div class="flowrow">
+<div class="node"><p class="label">📥 Takes</p><p class="s">adjacent holds not mine or my ally’s</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node" style="flex:1.5"><p class="label">⚙️ Calculates</p><p class="s">t* = argmax ( r − b ) · r = income, b = defense</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="label">📤 Returns</p><p class="s">one hold; ties → King’s Landing</p></div>
+</div>
+<div class="row">
+<div class="col">
+<p class="label">Situation · Stark, turn 1</p>
+<table>
+<tr><th>Adjacent hold</th><th style="width:12%">r</th><th style="width:12%">b</th><th style="width:16%">r − b</th><th style="width:28%"></th></tr>
+<tr style="background:#3A3320"><td>Riverrun</td><td>5</td><td>2</td><td>3</td><td>Greedy pick ✓</td></tr>
+<tr><td>Pyke</td><td>4</td><td>2</td><td>2</td><td></td></tr>
+<tr><td>The Twins</td><td>5</td><td>3</td><td>2</td><td>Minimax’s pick ★</td></tr>
+<tr><td>The Wall</td><td>4</td><td>3</td><td>1</td><td></td></tr>
+</table>
+</div>
+<div class="col" style="flex:0 0 560px">
+<div class="callout why"><p class="ct">❓ Why Greedy</p><p class="tx">Instant, so it can play every house inside 500 MCTS simulations.</p></div>
+<div class="callout mistake fragment"><p class="ct">⚠️ Common Mistake</p><p class="tx">Greedy is not the war decision: no look-ahead. Minimax decides, and prefers The Twins.</p></div>
+</div>
+</div>
+</section>

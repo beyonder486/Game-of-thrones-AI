@@ -1,0 +1,43 @@
+<section id="flow" data-transition="fade" style="gap:22px; padding-top:96px">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<div class="head"><p class="eyebrow">The Complete Flow</p><h2>Everything, step by step</h2></div>
+<div class="flowrow" style="position:relative">
+<div class="node fixed"><p class="t">Round starts · shuffled</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node fixed"><p class="t">Next house</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node dec glow" style="flex:0 0 320px"><p class="t">Offer in inbox?</p></div>
+</div>
+<div class="flowrow fragment" style="position:relative">
+<p class="lane blue">YES</p>
+<div class="node blue"><p class="t">Fuzzy B</p><p class="s">3rd-house threat</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node blue"><p class="t">MCTS</p><p class="s">accept / reject</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node blue"><p class="t">Pact or clear</p></div>
+<div class="token"></div>
+</div>
+<div class="flowrow fragment" style="position:relative">
+<p class="lane">NO</p>
+<div class="node"><p class="t">BFS + DFS</p><p class="s">scout</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="t">Fuzzy A</p><p class="s">own landscape</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="t">MCTS</p><p class="s">propose · betray · solo</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="t">Raven / −30 / alone</p></div>
+<div class="token" style="animation-delay:-1.6s"></div>
+</div>
+<div class="flowrow fragment" style="position:relative">
+<p class="lane ember">WAR</p>
+<div class="node ember"><p class="t">Minimax</p><p class="s">target or Hold</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node ember"><p class="t">A*</p><p class="s">first step</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node ember"><p class="t">Combat</p><p class="s">±20% luck</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node ember"><p class="t">Elimination</p><p class="s">plunder, purge</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node dec"><p class="t">More houses?</p><p class="s">yes → next</p></div>
+<div class="token" style="animation-delay:-3.2s"></div>
+</div>
+<div class="flowrow fragment" style="position:relative">
+<p class="lane green">END</p>
+<div class="node green"><p class="t">Income</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node green"><p class="t">Recruit</p><p class="s">cap · reserve · 3</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node green"><p class="t">+5 trust</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node green"><p class="t">Fuzzy refresh</p></div><x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node dec"><p class="t">Winner?</p><p class="s">no → new round</p></div>
+<div class="token" style="animation-delay:-0.8s"></div>
+</div>
+<aside>Click through: the YES branch, the NO branch, the shared war steps, then the end of round. Glowing tokens show the flow of a turn. Greedy runs inside every MCTS rollout.</aside>
+</section>

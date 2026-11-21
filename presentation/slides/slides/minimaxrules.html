@@ -1,0 +1,21 @@
+<section id="minimaxrules" data-transition="fade">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<img class="mascot" src="/_blob/5efc1e5cf5122fc928dd4d32e0469200" alt="" style="width:170px; height:127px; top:14px">
+<div class="head"><p class="eyebrow">Minimax · Modes and Filters</p><h2>Who is the enemy, and what’s allowed?</h2></div>
+<div class="flowrow">
+<div class="node dec fixed"><p class="t">Any alliance on the board?</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="col" style="gap:12px">
+<div class="node fragment"><p class="t">NO → Decomposed</p><p class="s">one 1v1 search per rival, weighted by its strength</p></div>
+<div class="node ember fragment"><p class="t">YES → Paranoid</p><p class="s">rivals act as one team that always hurts me most</p></div>
+</div>
+</div>
+<table>
+<tr><th style="width:24%">Filter</th><th>Rule</th></tr>
+<tr><td>Allies</td><td>Never attack an ally</td></tr>
+<tr><td>Weak army</td><td>Need 5+ armies to attack a house</td></tr>
+<tr><td>Throne</td><td>Only attack King’s Landing with armies ≥ its effective defense</td></tr>
+<tr style="background:#4A3B1C"><td>Fast win</td><td>Taking the throne ends the search with +50 per remaining ply: sooner beats later</td></tr>
+</table>
+<div class="callout"><p class="ct">💡 Key Insight</p><p class="tx">The moment any alliance forms, every surviving house switches to Paranoid; when it ends, all return to Decomposed.</p></div>
+</section>

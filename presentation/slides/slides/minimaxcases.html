@@ -1,0 +1,29 @@
+<section id="minimaxcases" data-transition="fade">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<div class="head"><p class="eyebrow">Minimax · Situations</p><h2>Which move, and why that one?</h2></div>
+<div class="flowrow">
+<div class="node fixed"><p class="t">Scores</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node dec"><p class="t">Hold beats every attack?</p><p class="s">yes → HOLD</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node"><p class="t">floor = max(best − 2, Hold)</p></div>
+<x-shape kind="arrow-right" class="arr"></x-shape>
+<div class="node ember"><p class="t">Random pick ≥ floor</p></div>
+</div>
+<div class="row">
+<div class="col" style="flex:0 0 700px">
+<img class="shot" src="/_blob/bb9af15f563fcb71bb82f2e5009600ef" alt="Hover tooltip on The Twins showing Minimax +82.8 BEST vs Hold +69.0" style="width:700px; height:339px">
+<div class="callout"><p class="ct">💡 Key Insight</p><p class="tx">Greedy wanted Riverrun; Minimax ranks it below even Hold: it leads away from the throne.</p></div>
+</div>
+<div class="col">
+<div class="card fragment"><p class="label">1 · Stark, turn 1 · floor 80.8</p>
+<div class="flowrow"><p class="kbd" style="border-color:#8FD69B">Twins 82.8 ✓</p><p class="kbd" style="border-color:#8FD69B">Wall 81.5 ✓</p><p class="kbd">Pyke 79.5</p><p class="kbd">Hold 69</p><p class="kbd">Riverrun 62.1</p></div>
+<p>Twins borders the throne: +13.5 corridor bonus.</p></div>
+<div class="card ember fragment"><p class="label">2 · Targaryen, turn 2</p>
+<div class="flowrow"><p class="kbd" style="border-color:#8FD69B">W.Harbor 100 ✓</p><p class="kbd" style="border-color:#8FD69B">Dreadfort 100 ✓</p><p class="kbd">Hold 85.5</p></div>
+<p>Tie at the top; Dreadfort picked at random.</p></div>
+<div class="card blue fragment"><p class="label">3 · Too weak</p><p>Every attack below Hold → hold and wait for recruits.</p></div>
+</div>
+</div>
+<aside>Situation 1: floor = max(82.8 − 2, 69) = 80.8. The Twins borders King’s Landing (A* cost 3), so 1.5 × (12 − 3) = 13.5. Situation 2 full list: White Harbor 100 · Dreadfort 100 · Storm’s End 96.5 · Harrenhal 94 · Hold 85.5.</aside>
+</section>

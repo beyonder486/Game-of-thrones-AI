@@ -1,0 +1,95 @@
+<section id="winodds" data-transition="fade">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<div class="head"><p class="eyebrow">Battle Math · 2</p><h2>When is a win possible?</h2></div>
+<div style="display:flex; height:70px; border-radius:12px; overflow:hidden">
+<div style="flex:1; background:#5A2A1A; display:flex; align-items:center; padding:0 20px"><p class="tx" style="font-size:24px; color:#F3EEE4">🎲 armies ≤ defense · underdog, luck only</p></div>
+<div style="flex:1; background:#5A4A1E; display:flex; align-items:center; padding:0 20px"><p class="tx" style="font-size:24px; color:#F3EEE4">⚖️ up to 1.5 × defense · favoured</p></div>
+<div style="flex:1; background:#24402A; display:flex; align-items:center; padding:0 20px"><p class="tx" style="font-size:24px; color:#F3EEE4">✅ &gt; 1.5 × defense · guaranteed (0.8·A &gt; 1.2·D)</p></div>
+</div>
+<div class="row">
+<div class="col" style="flex:0 0 740px; gap:14px">
+<div class="flowrow"><p class="note" style="flex:0 0 330px">14 vs neutral 3 · D 6</p><div class="bar"><div class="fill" style="width:100%; background:#8FD69B"></div></div><p class="note" style="flex:0 0 70px">100%</p></div>
+<div class="flowrow"><p class="note" style="flex:0 0 330px">14 vs neutral 4 · D 12</p><div class="bar"><div class="fill" style="width:81%"></div></div><p class="note" style="flex:0 0 70px">81%</p></div>
+<div class="flowrow"><p class="note" style="flex:0 0 330px">22 vs house 20 · D 22</p><div class="bar"><div class="fill" style="width:50%"></div></div><p class="note" style="flex:0 0 70px">50%</p></div>
+<div class="flowrow"><p class="note" style="flex:0 0 330px">20 vs house 20 · D 23</p><div class="bar"><div class="fill" style="width:21%; background:var(--ember)"></div></div><p class="note" style="flex:0 0 70px">21%</p></div>
+<div class="flowrow"><p class="note" style="flex:0 0 330px">34 vs King’s Landing · 33</p><div class="bar"><div class="fill" style="width:57%"></div></div><p class="note" style="flex:0 0 70px">57%</p></div>
+<div class="flowrow"><p class="note" style="flex:0 0 330px">40 vs King’s Landing · 33</p><div class="bar"><div class="fill" style="width:87%"></div></div><p class="note" style="flex:0 0 70px">87%</p></div>
+<div class="flowrow"><p class="note" style="flex:0 0 330px">50 vs King’s Landing · 33</p><div class="bar"><div class="fill" style="width:100%; background:#8FD69B"></div></div><p class="note" style="flex:0 0 70px">100%</p></div>
+<div class="callout tip"><p class="ct">🔎 Technical Note</p><p class="tx">20 vs 20 is only 21%: the defender’s bonus turns 20 into 23.</p></div>
+</div>
+<div style="flex:1; height:540px"></div>
+</div>
+<x-embed style="position:absolute; left:900px; top:408px; width:892px; height:540px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:892px;height:540px}</style></head><body><canvas id="c"></canvas><script>
+const W=892,H=540,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const SC=[["20 vs house 20 (bonus 3)",20,20,3,1,21,"Equal armies, but the defender's bonus makes 20 count as 23."],["14 vs neutral 4 (bonus 3)",14,4,3,0,81,"A starting army hits a small castle: 4 × 3 = 12. Favoured."],["34 vs King's Landing",34,11,3,0,57,"Just above 33: the throne falls a little over half the time."],["50 vs King's Landing",50,11,3,0,100,"Above 1.5 × 33 = 49.5: even the worst luck still wins."]];
+let si=0,res=[],last=null,hold=0;function eff(d,b,h){return h?d*(1+.05*b):d*b}
+function roll(){const s=SC[si],la=.8+Math.random()*.4,ld=.8+Math.random()*.4,ed=eff(s[2],s[3],s[4]),ap=s[1]*la,dp=ed*ld;res.push(ap>dp?1:0);if(res.length%6==1)last=[s[1],la,ap,ed,ld,dp]}
+function draw(){const s=SC[si];x.clearRect(0,0,W,H);x.textAlign="left";
+x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.fillText("Live battle simulator · "+s[0],22,40);
+x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("effective defense "+eff(s[2],s[3],s[4]).toFixed(0)+" · 300 battles, real ±20% luck",22,74);
+res.forEach((r,i)=>{x.fillStyle=r?"#8FD69B":"#E8794A";x.fillRect(22+(i%20)*21,100+Math.floor(i/20)*21,17,17)});
+const w=res.reduce((a,b)=>a+b,0),pct=res.length?Math.round(100*w/res.length):0;
+x.fillStyle="#F3EEE4";x.font="600 72px Segoe UI,Arial";x.fillText(pct+"%",470,190);
+x.font="24px Segoe UI,Arial";x.fillStyle="#C3CDCF";x.fillText("won "+w+" of "+res.length,470,228);x.fillText("expected ≈ "+s[5]+"%",470,262);
+if(last){x.fillStyle="#F3EEE4";x.fillText("A "+last[0]+" × "+last[1].toFixed(2)+" = "+last[2].toFixed(1),470,330);x.fillText("D "+last[3].toFixed(0)+" × "+last[4].toFixed(2)+" = "+last[5].toFixed(1),470,366);
+x.fillStyle=last[2]>last[5]?"#8FD69B":"#E8794A";x.font="600 26px Segoe UI,Arial";x.fillText(last[2]>last[5]?"→ attacker wins":"→ defender holds",470,404)}
+x.fillStyle="#8FD69B";x.fillRect(22,436,17,17);x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("win",46,453);x.fillStyle="#E8794A";x.fillRect(110,436,17,17);x.fillStyle="#C3CDCF";x.fillText("repelled",134,453);
+x.fillStyle="#F3EEE4";x.fillText(s[6],22,505)}
+while(res.length!=300)roll();draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" data-fragment-index="1" style="position:absolute; left:900px; top:408px; width:892px; height:540px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:892px;height:540px}</style></head><body><canvas id="c"></canvas><script>
+const W=892,H=540,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const SC=[["20 vs house 20 (bonus 3)",20,20,3,1,21,"Equal armies, but the defender's bonus makes 20 count as 23."],["14 vs neutral 4 (bonus 3)",14,4,3,0,81,"A starting army hits a small castle: 4 × 3 = 12. Favoured."],["34 vs King's Landing",34,11,3,0,57,"Just above 33: the throne falls a little over half the time."],["50 vs King's Landing",50,11,3,0,100,"Above 1.5 × 33 = 49.5: even the worst luck still wins."]];
+let si=1,res=[],last=null,hold=0;function eff(d,b,h){return h?d*(1+.05*b):d*b}
+function roll(){const s=SC[si],la=.8+Math.random()*.4,ld=.8+Math.random()*.4,ed=eff(s[2],s[3],s[4]),ap=s[1]*la,dp=ed*ld;res.push(ap>dp?1:0);if(res.length%6==1)last=[s[1],la,ap,ed,ld,dp]}
+function draw(){const s=SC[si];x.clearRect(0,0,W,H);x.textAlign="left";
+x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.fillText("Live battle simulator · "+s[0],22,40);
+x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("effective defense "+eff(s[2],s[3],s[4]).toFixed(0)+" · 300 battles, real ±20% luck",22,74);
+res.forEach((r,i)=>{x.fillStyle=r?"#8FD69B":"#E8794A";x.fillRect(22+(i%20)*21,100+Math.floor(i/20)*21,17,17)});
+const w=res.reduce((a,b)=>a+b,0),pct=res.length?Math.round(100*w/res.length):0;
+x.fillStyle="#F3EEE4";x.font="600 72px Segoe UI,Arial";x.fillText(pct+"%",470,190);
+x.font="24px Segoe UI,Arial";x.fillStyle="#C3CDCF";x.fillText("won "+w+" of "+res.length,470,228);x.fillText("expected ≈ "+s[5]+"%",470,262);
+if(last){x.fillStyle="#F3EEE4";x.fillText("A "+last[0]+" × "+last[1].toFixed(2)+" = "+last[2].toFixed(1),470,330);x.fillText("D "+last[3].toFixed(0)+" × "+last[4].toFixed(2)+" = "+last[5].toFixed(1),470,366);
+x.fillStyle=last[2]>last[5]?"#8FD69B":"#E8794A";x.font="600 26px Segoe UI,Arial";x.fillText(last[2]>last[5]?"→ attacker wins":"→ defender holds",470,404)}
+x.fillStyle="#8FD69B";x.fillRect(22,436,17,17);x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("win",46,453);x.fillStyle="#E8794A";x.fillRect(110,436,17,17);x.fillStyle="#C3CDCF";x.fillText("repelled",134,453);
+x.fillStyle="#F3EEE4";x.fillText(s[6],22,505)}
+while(res.length!=300)roll();draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" data-fragment-index="2" style="position:absolute; left:900px; top:408px; width:892px; height:540px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:892px;height:540px}</style></head><body><canvas id="c"></canvas><script>
+const W=892,H=540,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const SC=[["20 vs house 20 (bonus 3)",20,20,3,1,21,"Equal armies, but the defender's bonus makes 20 count as 23."],["14 vs neutral 4 (bonus 3)",14,4,3,0,81,"A starting army hits a small castle: 4 × 3 = 12. Favoured."],["34 vs King's Landing",34,11,3,0,57,"Just above 33: the throne falls a little over half the time."],["50 vs King's Landing",50,11,3,0,100,"Above 1.5 × 33 = 49.5: even the worst luck still wins."]];
+let si=2,res=[],last=null,hold=0;function eff(d,b,h){return h?d*(1+.05*b):d*b}
+function roll(){const s=SC[si],la=.8+Math.random()*.4,ld=.8+Math.random()*.4,ed=eff(s[2],s[3],s[4]),ap=s[1]*la,dp=ed*ld;res.push(ap>dp?1:0);if(res.length%6==1)last=[s[1],la,ap,ed,ld,dp]}
+function draw(){const s=SC[si];x.clearRect(0,0,W,H);x.textAlign="left";
+x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.fillText("Live battle simulator · "+s[0],22,40);
+x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("effective defense "+eff(s[2],s[3],s[4]).toFixed(0)+" · 300 battles, real ±20% luck",22,74);
+res.forEach((r,i)=>{x.fillStyle=r?"#8FD69B":"#E8794A";x.fillRect(22+(i%20)*21,100+Math.floor(i/20)*21,17,17)});
+const w=res.reduce((a,b)=>a+b,0),pct=res.length?Math.round(100*w/res.length):0;
+x.fillStyle="#F3EEE4";x.font="600 72px Segoe UI,Arial";x.fillText(pct+"%",470,190);
+x.font="24px Segoe UI,Arial";x.fillStyle="#C3CDCF";x.fillText("won "+w+" of "+res.length,470,228);x.fillText("expected ≈ "+s[5]+"%",470,262);
+if(last){x.fillStyle="#F3EEE4";x.fillText("A "+last[0]+" × "+last[1].toFixed(2)+" = "+last[2].toFixed(1),470,330);x.fillText("D "+last[3].toFixed(0)+" × "+last[4].toFixed(2)+" = "+last[5].toFixed(1),470,366);
+x.fillStyle=last[2]>last[5]?"#8FD69B":"#E8794A";x.font="600 26px Segoe UI,Arial";x.fillText(last[2]>last[5]?"→ attacker wins":"→ defender holds",470,404)}
+x.fillStyle="#8FD69B";x.fillRect(22,436,17,17);x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("win",46,453);x.fillStyle="#E8794A";x.fillRect(110,436,17,17);x.fillStyle="#C3CDCF";x.fillText("repelled",134,453);
+x.fillStyle="#F3EEE4";x.fillText(s[6],22,505)}
+while(res.length!=300)roll();draw();
+</script></body></html></x-embed>
+<x-embed class="fragment" data-fragment-index="3" style="position:absolute; left:900px; top:408px; width:892px; height:540px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:892px;height:540px}</style></head><body><canvas id="c"></canvas><script>
+const W=892,H=540,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const SC=[["20 vs house 20 (bonus 3)",20,20,3,1,21,"Equal armies, but the defender's bonus makes 20 count as 23."],["14 vs neutral 4 (bonus 3)",14,4,3,0,81,"A starting army hits a small castle: 4 × 3 = 12. Favoured."],["34 vs King's Landing",34,11,3,0,57,"Just above 33: the throne falls a little over half the time."],["50 vs King's Landing",50,11,3,0,100,"Above 1.5 × 33 = 49.5: even the worst luck still wins."]];
+let si=3,res=[],last=null,hold=0;function eff(d,b,h){return h?d*(1+.05*b):d*b}
+function roll(){const s=SC[si],la=.8+Math.random()*.4,ld=.8+Math.random()*.4,ed=eff(s[2],s[3],s[4]),ap=s[1]*la,dp=ed*ld;res.push(ap>dp?1:0);if(res.length%6==1)last=[s[1],la,ap,ed,ld,dp]}
+function draw(){const s=SC[si];x.clearRect(0,0,W,H);x.textAlign="left";
+x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.fillText("Live battle simulator · "+s[0],22,40);
+x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("effective defense "+eff(s[2],s[3],s[4]).toFixed(0)+" · 300 battles, real ±20% luck",22,74);
+res.forEach((r,i)=>{x.fillStyle=r?"#8FD69B":"#E8794A";x.fillRect(22+(i%20)*21,100+Math.floor(i/20)*21,17,17)});
+const w=res.reduce((a,b)=>a+b,0),pct=res.length?Math.round(100*w/res.length):0;
+x.fillStyle="#F3EEE4";x.font="600 72px Segoe UI,Arial";x.fillText(pct+"%",470,190);
+x.font="24px Segoe UI,Arial";x.fillStyle="#C3CDCF";x.fillText("won "+w+" of "+res.length,470,228);x.fillText("expected ≈ "+s[5]+"%",470,262);
+if(last){x.fillStyle="#F3EEE4";x.fillText("A "+last[0]+" × "+last[1].toFixed(2)+" = "+last[2].toFixed(1),470,330);x.fillText("D "+last[3].toFixed(0)+" × "+last[4].toFixed(2)+" = "+last[5].toFixed(1),470,366);
+x.fillStyle=last[2]>last[5]?"#8FD69B":"#E8794A";x.font="600 26px Segoe UI,Arial";x.fillText(last[2]>last[5]?"→ attacker wins":"→ defender holds",470,404)}
+x.fillStyle="#8FD69B";x.fillRect(22,436,17,17);x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("win",46,453);x.fillStyle="#E8794A";x.fillRect(110,436,17,17);x.fillStyle="#C3CDCF";x.fillText("repelled",134,453);
+x.fillStyle="#F3EEE4";x.fillText(s[6],22,505)}
+while(res.length!=300)roll();draw();
+</script></body></html></x-embed>
+<aside>Bar values from 200,000 simulated rolls each with the game’s effective_defense(). The live panel rolls real battles in front of the audience; its percentage converges to the same numbers.</aside>
+</section>

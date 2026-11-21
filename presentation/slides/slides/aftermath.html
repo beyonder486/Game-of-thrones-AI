@@ -1,0 +1,21 @@
+<section id="aftermath" data-transition="fade">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<div class="head"><p class="eyebrow">Battle Math · 3</p><h2>After the battle</h2></div>
+<div class="row">
+<div class="col" style="flex:0 0 720px; gap:12px">
+<img class="shot" src="/_blob/6e5942ddf72b19e3f93be9d3e75d4e92" alt="Live capture from the game: Lannister’s dragon breathes fire on Stark at Moat Cailin" style="width:720px; height:512px">
+<p class="note">Captured from the game renderer · Lannister vs Stark at Moat Cailin</p>
+</div>
+<div class="col">
+<div class="card" style="border-top-color:#8FD69B"><p class="label" style="color:#8FD69B">Attacker wins</p><p>Attacker −⌊0.5 × D⌋ · Defender −⌊0.8 × D⌋<br>Hold changes owner. 0 holds left → winner takes all its gold; its pacts and offers are erased.</p></div>
+<div class="card ember"><p class="label">Defender holds</p><p>Attacker −⌊0.6 × A⌋ · Defender −⌊0.2 × min(A, D)⌋</p></div>
+<div class="flowrow fragment">
+<div class="node" style="align-items:center"><p class="s">22 Lannister beat 20 Stark</p></div>
+<div class="node ember" style="align-items:center"><p class="t" style="font-size:40px">−10</p><p class="s">Lannister</p></div>
+<div class="node blue" style="align-items:center"><p class="t" style="font-size:40px">−16</p><p class="s">Stark</p></div>
+</div>
+<p class="note">A = attacker, D = defender armies. Nobody drops below 1.</p>
+</div>
+</div>
+<aside>Why min(A, D): a tiny raid of 6 into 20 can only kill 1 defender, so suicide attacks can’t trade 3-for-4.</aside>
+</section>

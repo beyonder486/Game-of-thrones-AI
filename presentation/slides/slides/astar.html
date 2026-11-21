@@ -1,0 +1,95 @@
+<section id="astar" data-transition="push" style="gap:24px">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<div class="head"><p class="eyebrow">Algorithm 4 · A* Pathfinding</p><h2>The safest road to the throne</h2></div>
+<p class="formula">f(n) = g(n) + h(n)   ·   g = Σ defense bonuses crossed so far   ·   h = hex distance left to the goal</p>
+<div style="height:450px"></div>
+<div class="row">
+<div class="callout"><p class="ct">🎯 Used for</p><p class="tx">Minimax throne bonus 1.5 × max(0, 12 − cost) · a human click on a distant hold marches 1 step along the route.</p></div>
+<div class="callout why"><p class="ct">❓ Why A*</p><p class="tx">Cost so far + a distance estimate points the search at the goal, so it explores far fewer holds than a blind search.</p></div>
+</div>
+<x-embed style="position:absolute; left:128px; top:362px; width:1664px; height:450px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1664px;height:450px}</style></head><body><canvas id="c"></canvas><script>
+const STEP=0;
+const D=[["Wall",8,1,3,[4,5,10,1]],["C.Black",12,1,2,[0,5,11,12,6]],["Dreadfort",16,1,3,[6,7]],["Pyke",1,2,2,[8,9,4]],["Winterfell",5,2,3,[3,9,0,10]],["Moat C.",9,2,2,[0,10,11,1]],["W.Harbor",14,2,2,[1,12,2,7]],["Eyrie",17,3,3,[6,12,2,17,18]],["Lannisport",1,4,2,[3,13,9]],["Riverrun",4,4,2,[3,8,13,4,14,10]],["Twins",7,4,3,[4,9,14,0,5,15,11]],["K.Landing",10,4,3,[10,15,5,1,12,16]],["Harrenhal",13,4,1,[1,11,6,16,17,7]],["Casterly",2,6,2,[8,9,14]],["Oldtown",5,7,2,[13,9,10,15]],["Highgarden",8,6,2,[14,10,11,16]],["Dorne",12,7,2,[15,11,12,17]],["Storm's E.",15,6,2,[12,16,7,18]],["Dragonstone",18,6,4,[17,7]]];
+const ST=[{cur:-1,open:{},closed:{},msg:"Stark holds only Winterfell. Before choosing an attack, Minimax asks A*: what is the cheapest road to King's Landing? Cost = the defense of every hold you must cross."},
+{cur:4,open:{3:11,9:8,0:7,10:6},closed:{4:1},msg:"Expand Winterfell (g 0 + h 5 = 5). Its neighbours join the list with f = g + h: Pyke 11 · Riverrun 8 · The Wall 7 · The Twins 6. Lowest f wins next."},
+{cur:10,open:{3:11,9:8,0:7,14:11,5:7,15:8,11:6},closed:{4:1,10:1},msg:"Expand The Twins (g 3 + h 3 = 6): Oldtown 11 · Moat Cailin 7 · Highgarden 8 · King's Landing 6. King's Landing now has the lowest f."},
+{cur:-1,open:{},closed:{4:1,10:1,11:1},path:[4,10,11],msg:"Route found: Winterfell → The Twins → King's Landing, total defense 6. Minimax turns it into a bonus of 1.5 × (12 − 6) = 9. Owning The Twins would cut the cost to 3 → bonus 13.5. That is why Stark attacks The Twins on turn 1."}];
+const W=1664,H=450,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const P=D.map(d=>[60+(d[1]-1)*880/17,60+(d[2]-1+(d[1]%2)*.5)*330/6.5]);
+function wrap(t,x0,y0,w,lh){let line="",y=y0;t.split(" ").forEach(wd=>{const tt=line?line+" "+wd:wd;if(x.measureText(tt).width>w?line!=="":false){x.fillText(line,x0,y);line=wd;y+=lh}else line=tt});if(line)x.fillText(line,x0,y)}
+const st=ST[STEP],on={};if(st.path)st.path.forEach((v,i)=>{if(i)on[Math.min(v,st.path[i-1])+"-"+Math.max(v,st.path[i-1])]=1});
+D.forEach((d,u)=>d[4].forEach(v=>{if(v>u){const kk=on[u+"-"+v];x.strokeStyle=kk?"#E0B45E":"rgba(195,205,207,.22)";x.lineWidth=kk?6:2;x.beginPath();x.moveTo(P[u][0],P[u][1]);x.lineTo(P[v][0],P[v][1]);x.stroke()}}));
+D.forEach((d,i)=>{const cl=st.closed[i],op=st.open[i]!==undefined,goal=i==11,src=i==4;x.fillStyle=i==st.cur?"#E0B45E":(cl?"#6EC1DC":"#2B3B47");x.beginPath();x.arc(P[i][0],P[i][1],14,0,7);x.fill();
+if(op?true:(goal?true:src)){x.strokeStyle=goal?"#8FD69B":(src?"#E0B45E":"#E8794A");x.lineWidth=4;x.stroke()}
+x.fillStyle=cl?"#F3EEE4":(op?"#F3EEE4":"#7D8C93");x.font="24px Segoe UI,Arial";x.textAlign="center";x.fillText(d[0],P[i][0],P[i][1]+36);
+if(op){x.fillStyle="#E8794A";x.font="600 24px Segoe UI,Arial";x.fillText("f"+st.open[i],P[i][0],P[i][1]-20)}});
+x.fillStyle="rgba(255,255,255,.05)";x.fillRect(1010,16,636,418);x.textAlign="left";
+x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.fillText("Stark · Winterfell → King's Landing",1034,56);
+x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("step "+(STEP+1)+" / 4   ·   blue = expanded · orange = on the list",1034,92);
+x.fillStyle="#F3EEE4";x.font="26px Segoe UI,Arial";wrap(st.msg,1034,146,590,38);
+</script></body></html></x-embed>
+<x-embed class="fragment" style="position:absolute; left:128px; top:362px; width:1664px; height:450px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1664px;height:450px}</style></head><body><canvas id="c"></canvas><script>
+const STEP=1;
+const D=[["Wall",8,1,3,[4,5,10,1]],["C.Black",12,1,2,[0,5,11,12,6]],["Dreadfort",16,1,3,[6,7]],["Pyke",1,2,2,[8,9,4]],["Winterfell",5,2,3,[3,9,0,10]],["Moat C.",9,2,2,[0,10,11,1]],["W.Harbor",14,2,2,[1,12,2,7]],["Eyrie",17,3,3,[6,12,2,17,18]],["Lannisport",1,4,2,[3,13,9]],["Riverrun",4,4,2,[3,8,13,4,14,10]],["Twins",7,4,3,[4,9,14,0,5,15,11]],["K.Landing",10,4,3,[10,15,5,1,12,16]],["Harrenhal",13,4,1,[1,11,6,16,17,7]],["Casterly",2,6,2,[8,9,14]],["Oldtown",5,7,2,[13,9,10,15]],["Highgarden",8,6,2,[14,10,11,16]],["Dorne",12,7,2,[15,11,12,17]],["Storm's E.",15,6,2,[12,16,7,18]],["Dragonstone",18,6,4,[17,7]]];
+const ST=[{cur:-1,open:{},closed:{},msg:"Stark holds only Winterfell. Before choosing an attack, Minimax asks A*: what is the cheapest road to King's Landing? Cost = the defense of every hold you must cross."},
+{cur:4,open:{3:11,9:8,0:7,10:6},closed:{4:1},msg:"Expand Winterfell (g 0 + h 5 = 5). Its neighbours join the list with f = g + h: Pyke 11 · Riverrun 8 · The Wall 7 · The Twins 6. Lowest f wins next."},
+{cur:10,open:{3:11,9:8,0:7,14:11,5:7,15:8,11:6},closed:{4:1,10:1},msg:"Expand The Twins (g 3 + h 3 = 6): Oldtown 11 · Moat Cailin 7 · Highgarden 8 · King's Landing 6. King's Landing now has the lowest f."},
+{cur:-1,open:{},closed:{4:1,10:1,11:1},path:[4,10,11],msg:"Route found: Winterfell → The Twins → King's Landing, total defense 6. Minimax turns it into a bonus of 1.5 × (12 − 6) = 9. Owning The Twins would cut the cost to 3 → bonus 13.5. That is why Stark attacks The Twins on turn 1."}];
+const W=1664,H=450,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const P=D.map(d=>[60+(d[1]-1)*880/17,60+(d[2]-1+(d[1]%2)*.5)*330/6.5]);
+function wrap(t,x0,y0,w,lh){let line="",y=y0;t.split(" ").forEach(wd=>{const tt=line?line+" "+wd:wd;if(x.measureText(tt).width>w?line!=="":false){x.fillText(line,x0,y);line=wd;y+=lh}else line=tt});if(line)x.fillText(line,x0,y)}
+const st=ST[STEP],on={};if(st.path)st.path.forEach((v,i)=>{if(i)on[Math.min(v,st.path[i-1])+"-"+Math.max(v,st.path[i-1])]=1});
+D.forEach((d,u)=>d[4].forEach(v=>{if(v>u){const kk=on[u+"-"+v];x.strokeStyle=kk?"#E0B45E":"rgba(195,205,207,.22)";x.lineWidth=kk?6:2;x.beginPath();x.moveTo(P[u][0],P[u][1]);x.lineTo(P[v][0],P[v][1]);x.stroke()}}));
+D.forEach((d,i)=>{const cl=st.closed[i],op=st.open[i]!==undefined,goal=i==11,src=i==4;x.fillStyle=i==st.cur?"#E0B45E":(cl?"#6EC1DC":"#2B3B47");x.beginPath();x.arc(P[i][0],P[i][1],14,0,7);x.fill();
+if(op?true:(goal?true:src)){x.strokeStyle=goal?"#8FD69B":(src?"#E0B45E":"#E8794A");x.lineWidth=4;x.stroke()}
+x.fillStyle=cl?"#F3EEE4":(op?"#F3EEE4":"#7D8C93");x.font="24px Segoe UI,Arial";x.textAlign="center";x.fillText(d[0],P[i][0],P[i][1]+36);
+if(op){x.fillStyle="#E8794A";x.font="600 24px Segoe UI,Arial";x.fillText("f"+st.open[i],P[i][0],P[i][1]-20)}});
+x.fillStyle="rgba(255,255,255,.05)";x.fillRect(1010,16,636,418);x.textAlign="left";
+x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.fillText("Stark · Winterfell → King's Landing",1034,56);
+x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("step "+(STEP+1)+" / 4   ·   blue = expanded · orange = on the list",1034,92);
+x.fillStyle="#F3EEE4";x.font="26px Segoe UI,Arial";wrap(st.msg,1034,146,590,38);
+</script></body></html></x-embed>
+<x-embed class="fragment" style="position:absolute; left:128px; top:362px; width:1664px; height:450px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1664px;height:450px}</style></head><body><canvas id="c"></canvas><script>
+const STEP=2;
+const D=[["Wall",8,1,3,[4,5,10,1]],["C.Black",12,1,2,[0,5,11,12,6]],["Dreadfort",16,1,3,[6,7]],["Pyke",1,2,2,[8,9,4]],["Winterfell",5,2,3,[3,9,0,10]],["Moat C.",9,2,2,[0,10,11,1]],["W.Harbor",14,2,2,[1,12,2,7]],["Eyrie",17,3,3,[6,12,2,17,18]],["Lannisport",1,4,2,[3,13,9]],["Riverrun",4,4,2,[3,8,13,4,14,10]],["Twins",7,4,3,[4,9,14,0,5,15,11]],["K.Landing",10,4,3,[10,15,5,1,12,16]],["Harrenhal",13,4,1,[1,11,6,16,17,7]],["Casterly",2,6,2,[8,9,14]],["Oldtown",5,7,2,[13,9,10,15]],["Highgarden",8,6,2,[14,10,11,16]],["Dorne",12,7,2,[15,11,12,17]],["Storm's E.",15,6,2,[12,16,7,18]],["Dragonstone",18,6,4,[17,7]]];
+const ST=[{cur:-1,open:{},closed:{},msg:"Stark holds only Winterfell. Before choosing an attack, Minimax asks A*: what is the cheapest road to King's Landing? Cost = the defense of every hold you must cross."},
+{cur:4,open:{3:11,9:8,0:7,10:6},closed:{4:1},msg:"Expand Winterfell (g 0 + h 5 = 5). Its neighbours join the list with f = g + h: Pyke 11 · Riverrun 8 · The Wall 7 · The Twins 6. Lowest f wins next."},
+{cur:10,open:{3:11,9:8,0:7,14:11,5:7,15:8,11:6},closed:{4:1,10:1},msg:"Expand The Twins (g 3 + h 3 = 6): Oldtown 11 · Moat Cailin 7 · Highgarden 8 · King's Landing 6. King's Landing now has the lowest f."},
+{cur:-1,open:{},closed:{4:1,10:1,11:1},path:[4,10,11],msg:"Route found: Winterfell → The Twins → King's Landing, total defense 6. Minimax turns it into a bonus of 1.5 × (12 − 6) = 9. Owning The Twins would cut the cost to 3 → bonus 13.5. That is why Stark attacks The Twins on turn 1."}];
+const W=1664,H=450,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const P=D.map(d=>[60+(d[1]-1)*880/17,60+(d[2]-1+(d[1]%2)*.5)*330/6.5]);
+function wrap(t,x0,y0,w,lh){let line="",y=y0;t.split(" ").forEach(wd=>{const tt=line?line+" "+wd:wd;if(x.measureText(tt).width>w?line!=="":false){x.fillText(line,x0,y);line=wd;y+=lh}else line=tt});if(line)x.fillText(line,x0,y)}
+const st=ST[STEP],on={};if(st.path)st.path.forEach((v,i)=>{if(i)on[Math.min(v,st.path[i-1])+"-"+Math.max(v,st.path[i-1])]=1});
+D.forEach((d,u)=>d[4].forEach(v=>{if(v>u){const kk=on[u+"-"+v];x.strokeStyle=kk?"#E0B45E":"rgba(195,205,207,.22)";x.lineWidth=kk?6:2;x.beginPath();x.moveTo(P[u][0],P[u][1]);x.lineTo(P[v][0],P[v][1]);x.stroke()}}));
+D.forEach((d,i)=>{const cl=st.closed[i],op=st.open[i]!==undefined,goal=i==11,src=i==4;x.fillStyle=i==st.cur?"#E0B45E":(cl?"#6EC1DC":"#2B3B47");x.beginPath();x.arc(P[i][0],P[i][1],14,0,7);x.fill();
+if(op?true:(goal?true:src)){x.strokeStyle=goal?"#8FD69B":(src?"#E0B45E":"#E8794A");x.lineWidth=4;x.stroke()}
+x.fillStyle=cl?"#F3EEE4":(op?"#F3EEE4":"#7D8C93");x.font="24px Segoe UI,Arial";x.textAlign="center";x.fillText(d[0],P[i][0],P[i][1]+36);
+if(op){x.fillStyle="#E8794A";x.font="600 24px Segoe UI,Arial";x.fillText("f"+st.open[i],P[i][0],P[i][1]-20)}});
+x.fillStyle="rgba(255,255,255,.05)";x.fillRect(1010,16,636,418);x.textAlign="left";
+x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.fillText("Stark · Winterfell → King's Landing",1034,56);
+x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("step "+(STEP+1)+" / 4   ·   blue = expanded · orange = on the list",1034,92);
+x.fillStyle="#F3EEE4";x.font="26px Segoe UI,Arial";wrap(st.msg,1034,146,590,38);
+</script></body></html></x-embed>
+<x-embed class="fragment" style="position:absolute; left:128px; top:362px; width:1664px; height:450px"><!doctype html><html><head><style>html,body{margin:0;height:100%;overflow:hidden;background:#06121C;border-radius:12px;font-family:"Segoe UI",Arial,sans-serif}canvas{width:1664px;height:450px}</style></head><body><canvas id="c"></canvas><script>
+const STEP=3;
+const D=[["Wall",8,1,3,[4,5,10,1]],["C.Black",12,1,2,[0,5,11,12,6]],["Dreadfort",16,1,3,[6,7]],["Pyke",1,2,2,[8,9,4]],["Winterfell",5,2,3,[3,9,0,10]],["Moat C.",9,2,2,[0,10,11,1]],["W.Harbor",14,2,2,[1,12,2,7]],["Eyrie",17,3,3,[6,12,2,17,18]],["Lannisport",1,4,2,[3,13,9]],["Riverrun",4,4,2,[3,8,13,4,14,10]],["Twins",7,4,3,[4,9,14,0,5,15,11]],["K.Landing",10,4,3,[10,15,5,1,12,16]],["Harrenhal",13,4,1,[1,11,6,16,17,7]],["Casterly",2,6,2,[8,9,14]],["Oldtown",5,7,2,[13,9,10,15]],["Highgarden",8,6,2,[14,10,11,16]],["Dorne",12,7,2,[15,11,12,17]],["Storm's E.",15,6,2,[12,16,7,18]],["Dragonstone",18,6,4,[17,7]]];
+const ST=[{cur:-1,open:{},closed:{},msg:"Stark holds only Winterfell. Before choosing an attack, Minimax asks A*: what is the cheapest road to King's Landing? Cost = the defense of every hold you must cross."},
+{cur:4,open:{3:11,9:8,0:7,10:6},closed:{4:1},msg:"Expand Winterfell (g 0 + h 5 = 5). Its neighbours join the list with f = g + h: Pyke 11 · Riverrun 8 · The Wall 7 · The Twins 6. Lowest f wins next."},
+{cur:10,open:{3:11,9:8,0:7,14:11,5:7,15:8,11:6},closed:{4:1,10:1},msg:"Expand The Twins (g 3 + h 3 = 6): Oldtown 11 · Moat Cailin 7 · Highgarden 8 · King's Landing 6. King's Landing now has the lowest f."},
+{cur:-1,open:{},closed:{4:1,10:1,11:1},path:[4,10,11],msg:"Route found: Winterfell → The Twins → King's Landing, total defense 6. Minimax turns it into a bonus of 1.5 × (12 − 6) = 9. Owning The Twins would cut the cost to 3 → bonus 13.5. That is why Stark attacks The Twins on turn 1."}];
+const W=1664,H=450,c=document.getElementById("c"),x=c.getContext("2d");c.width=W*2;c.height=H*2;x.scale(2,2);
+const P=D.map(d=>[60+(d[1]-1)*880/17,60+(d[2]-1+(d[1]%2)*.5)*330/6.5]);
+function wrap(t,x0,y0,w,lh){let line="",y=y0;t.split(" ").forEach(wd=>{const tt=line?line+" "+wd:wd;if(x.measureText(tt).width>w?line!=="":false){x.fillText(line,x0,y);line=wd;y+=lh}else line=tt});if(line)x.fillText(line,x0,y)}
+const st=ST[STEP],on={};if(st.path)st.path.forEach((v,i)=>{if(i)on[Math.min(v,st.path[i-1])+"-"+Math.max(v,st.path[i-1])]=1});
+D.forEach((d,u)=>d[4].forEach(v=>{if(v>u){const kk=on[u+"-"+v];x.strokeStyle=kk?"#E0B45E":"rgba(195,205,207,.22)";x.lineWidth=kk?6:2;x.beginPath();x.moveTo(P[u][0],P[u][1]);x.lineTo(P[v][0],P[v][1]);x.stroke()}}));
+D.forEach((d,i)=>{const cl=st.closed[i],op=st.open[i]!==undefined,goal=i==11,src=i==4;x.fillStyle=i==st.cur?"#E0B45E":(cl?"#6EC1DC":"#2B3B47");x.beginPath();x.arc(P[i][0],P[i][1],14,0,7);x.fill();
+if(op?true:(goal?true:src)){x.strokeStyle=goal?"#8FD69B":(src?"#E0B45E":"#E8794A");x.lineWidth=4;x.stroke()}
+x.fillStyle=cl?"#F3EEE4":(op?"#F3EEE4":"#7D8C93");x.font="24px Segoe UI,Arial";x.textAlign="center";x.fillText(d[0],P[i][0],P[i][1]+36);
+if(op){x.fillStyle="#E8794A";x.font="600 24px Segoe UI,Arial";x.fillText("f"+st.open[i],P[i][0],P[i][1]-20)}});
+x.fillStyle="rgba(255,255,255,.05)";x.fillRect(1010,16,636,418);x.textAlign="left";
+x.fillStyle="#E0B45E";x.font="600 26px Segoe UI,Arial";x.fillText("Stark · Winterfell → King's Landing",1034,56);
+x.fillStyle="#C3CDCF";x.font="24px Segoe UI,Arial";x.fillText("step "+(STEP+1)+" / 4   ·   blue = expanded · orange = on the list",1034,92);
+x.fillStyle="#F3EEE4";x.font="26px Segoe UI,Arial";wrap(st.msg,1034,146,590,38);
+</script></body></html></x-embed>
+<aside>Click to advance: each click reveals the next A* step on the real map. Step 4 shows why Stark’s first move is The Twins.</aside>
+</section>

@@ -1,0 +1,19 @@
+<section id="vizfuzzy" data-transition="fade">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<img class="shot" src="/_blob/046e307a1b93d4f586bef465d03cebc8" alt="Visualizer Fuzzy tab, stage 1: fuzzify the three inputs" style="position:absolute; left:128px; top:268px; width:1244px; height:700px">
+<img class="shot fragment" data-fragment-index="1" src="/_blob/0c95c4d49f4d082e0b8ca620d9ed3400" alt="Visualizer Fuzzy tab, stage 2: rule firing" style="position:absolute; left:128px; top:268px; width:1244px; height:700px">
+<img class="shot fragment" data-fragment-index="2" src="/_blob/833c50c38479abcb86e191eef9677025" alt="Visualizer Fuzzy tab, stage 3: aggregate the outputs" style="position:absolute; left:128px; top:268px; width:1244px; height:700px">
+<img class="shot fragment" data-fragment-index="3" src="/_blob/57457b58d334342c1c903e4c696fa8a3" alt="Visualizer Fuzzy tab, stage 4: centroid gives the final scores" style="position:absolute; left:128px; top:268px; width:1244px; height:700px">
+<div class="head"><p class="eyebrow">In the Visualizer · Fuzzy Logic</p><h2>Four stages of one decision</h2></div>
+<div class="row">
+<div style="flex:0 0 1244px; height:700px"></div>
+<div class="col" style="gap:14px">
+<p class="note">Stark, weakened, faces a dominant Lannister; trusts Targaryen. Threat 82 · weakness 74 · trust 68.</p>
+<div class="card"><p class="label">1 · Fuzzify</p><p>Threat → High 0.70 · weakness → High 0.57 · trust → High 0.47</p></div>
+<div class="card fragment" data-fragment-index="1"><p class="label">2 · Fire rules</p><p>R1 (threat ∧ weak) 0.57 · R5 (threat ∧ trust) 0.47</p></div>
+<div class="card fragment" data-fragment-index="2"><p class="label">3 · Aggregate</p><p>clipped shapes merge with max()</p></div>
+<div class="card fragment" data-fragment-index="3" style="border-top-color:#8FD69B"><p class="label" style="color:#8FD69B">4 · Centroid</p><p>alliance 0.65 · betrayal 0 · solo 0 → to MCTS</p></div>
+</div>
+</div>
+<aside>Real screens from tree_visualizer.html, Fuzzy tab, preset “Underdog vs Giant (Context A)”. Click to move through the four Mamdani stages.</aside>
+</section>

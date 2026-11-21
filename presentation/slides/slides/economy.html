@@ -1,0 +1,20 @@
+<section id="economy" data-transition="push" style="gap:32px">
+<img class="bg" src="/_blob/cbb9cdf3064393f04f453257c323b16d" alt="">
+<img class="mascot" src="/_blob/22bb6628f1311a35b6ac067c49957008" alt="">
+<div class="head"><p class="eyebrow">Economy</p><h2>Why gold matters</h2></div>
+<div class="grid4" style="grid-template-columns:repeat(5, 1fr)">
+<div class="card rise" style="--i:0; align-items:center"><img src="/_blob/a03402b25a9628bf37c681578d691ead" alt="Gold coin" style="width:48px; height:48px"><p class="big" style="font-size:44px">10 + Σ</p><p>income / round</p></div>
+<div class="card blue rise" style="--i:1; align-items:center"><img src="/_blob/0f06f5487c4163c2b17732fdecf4f60e" alt="House crest" style="width:48px; height:48px"><p class="big" style="font-size:44px">10 + 4h</p><p>supply cap</p></div>
+<div class="card rise" style="--i:2; align-items:center"><img src="/_blob/a03402b25a9628bf37c681578d691ead" alt="Gold coin" style="width:48px; height:48px"><p class="big" style="font-size:44px">5</p><p>gold per army</p></div>
+<div class="card rise" style="--i:3; align-items:center"><img src="/_blob/a03402b25a9628bf37c681578d691ead" alt="Gold coin" style="width:48px; height:48px"><p class="big" style="font-size:44px">15</p><p>gold reserve</p></div>
+<div class="card ember rise" style="--i:4; align-items:center"><img src="/_blob/37c42e68ad69f440ad376d06be6ec6ca" alt="Running warrior (game sprite)" style="width:58px; height:54px"><p class="big" style="font-size:44px">3</p><p>max recruits</p></div>
+</div>
+<p class="formula">Recruits = min( 3 ,  ⌊(Gold − 15) / 5⌋ ,  Cap − Armies )</p>
+<div class="col" style="gap:12px">
+<div class="flowrow"><p class="note" style="flex:0 0 380px">Round 1 · 1 hold · cap 14</p><div class="bar"><div class="fill" style="width:28%; background:var(--ember)"></div></div><p class="note" style="flex:0 0 560px">79 gold but armies = cap → 0 recruits</p></div>
+<div class="flowrow"><p class="note" style="flex:0 0 380px">2 holds · cap 18</p><div class="bar"><div class="fill" style="width:36%"></div></div><p class="note" style="flex:0 0 560px">3 recruits for 15 gold</p></div>
+<div class="flowrow"><p class="note" style="flex:0 0 380px">6 holds · cap 34</p><div class="bar"><div class="fill" style="width:68%; background:#8FD69B"></div></div><p class="note" style="flex:0 0 560px">beats King’s Landing’s 33 ✓</p></div>
+</div>
+<div class="callout"><p class="ct">💡 Key Insight</p><p class="tx">Land unlocks troops; gold pays for them. The cap stops the “camp on one castle and hoard troops” exploit.</p></div>
+<aside>Bars show the supply cap against a 50-army scale; King’s Landing needs more than 33. Gold also counts in Minimax (+0.5 per gold) and is plundered when a house is eliminated.</aside>
+</section>
