@@ -2532,16 +2532,39 @@ def draw_hud_toggles(
     show_houses: bool = False,
     show_log: bool = False,
     music_enabled: bool = False,
+    is_paused: bool = False,
     mouse: tuple[float, float] | None = None,
 ) -> dict[str, pygame.Rect]:
-    """Render top-right music toggle and collapsible drawer pills on the full-screen map."""
+    """Render top-left Pause/Restart and top-right Music/AI Brain/Raven Log pills."""
     buttons: dict[str, pygame.Rect] = {}
+    pause_btn = pygame.Rect(MAP_RECT.x + 256, MAP_RECT.y + 14, 118, 40)
+    restart_btn = pygame.Rect(MAP_RECT.x + 382, MAP_RECT.y + 14, 118, 40)
     music_btn = pygame.Rect(MAP_RECT.right - 378, MAP_RECT.y + 14, 112, 40)
     houses_btn = pygame.Rect(MAP_RECT.right - 258, MAP_RECT.y + 14, 116, 40)
     log_btn = pygame.Rect(MAP_RECT.right - 134, MAP_RECT.y + 14, 122, 40)
+    buttons["toggle_pause"] = pause_btn
+    buttons["restart_game"] = restart_btn
     buttons["toggle_music"] = music_btn
     buttons["toggle_houses"] = houses_btn
     buttons["toggle_log"] = log_btn
+    _draw_button(
+        surface,
+        pause_btn,
+        "RESUME [P]" if is_paused else "PAUSE [P]",
+        fonts["micro"],
+        active=is_paused,
+        hovered=bool(mouse and pause_btn.collidepoint(mouse)),
+        accent=GOLD if is_paused else STARK,
+    )
+    _draw_button(
+        surface,
+        restart_btn,
+        "RESTART [R]",
+        fonts["micro"],
+        active=False,
+        hovered=bool(mouse and restart_btn.collidepoint(mouse)),
+        accent=LANNISTER,
+    )
     _draw_button(
         surface,
         music_btn,
@@ -2554,7 +2577,7 @@ def draw_hud_toggles(
     _draw_button(
         surface,
         houses_btn,
-        "FUZZY [H]",
+        "AI BRAIN [H]",
         fonts["micro"],
         active=show_houses,
         hovered=bool(mouse and houses_btn.collidepoint(mouse)),
@@ -2603,6 +2626,15 @@ def _draw_fuzzy_bar(
     write_right(surface, f"{value:.2f}", rect_right - 14, y, fonts["micro"], IVORY)
 
 
+def _trim_text(text: str, font: pygame.font.Font, max_w: int) -> str:
+    if font.size(text)[0] <= max_w:
+        return text
+    trimmed = text
+    while len(trimmed) > 3 and font.size(trimmed + "...")[0] > max_w:
+        trimmed = trimmed[:-1]
+    return trimmed + "..."
+
+
 def draw_sidebar(
     surface: pygame.Surface,
     fonts: dict[str, pygame.font.Font],
@@ -2613,8 +2645,10 @@ def draw_sidebar(
     show_log: bool = False,
     selected_fuzzy_house: str | None = None,
     mouse: tuple[float, float] | None = None,
+    brain_tab: str = "trace",
+    acting_house: str | None = None,
 ) -> dict[str, pygame.Rect]:
-    """Render collapsible Fuzzy Diplomacy Intelligence & Raven's Log drawers over the map."""
+    """Render collapsible AI Brain (Live Trace / Fuzzy Pairs) & Raven's Log drawers."""
     sidebar_buttons: dict[str, pygame.Rect] = {}
     if not show_houses and not show_log:
         return sidebar_buttons
@@ -2629,8 +2663,10 @@ def draw_sidebar(
         rect = pygame.Rect(hx, drawer_y, house_w, drawer_h)
         sidebar_buttons["drawer_fuzzy"] = rect
         draw_glass_panel(surface, rect, (16, 25, 30), GOLD, 10)
-        write(surface, "FUZZY DIPLOMACY", (rect.x + 16, rect.y + 12), fonts["subhead"], IVORY)
-        write_right(surface, "PAIRWISE SCORES", rect.right - 16, rect.y + 14, fonts["micro"], MUTED)
+        header_title = "AI DECISION BRAIN" if brain_tab == "trace" else "FUZZY DIPLOMACY"
+        header_sub = "LIVE ALGORITHMS" if brain_tab == "trace" else "PAIRWISE SCORES"
+        write(surface, header_title, (rect.x + 16, rect.y + 12), fonts["subhead"], IVORY)
+        write_right(surface, header_sub, rect.right - 16, rect.y + 14, fonts["micro"], MUTED)
         pygame.draw.line(surface, GOLD, (rect.x + 16, rect.y + 36), (rect.x + 88, rect.y + 36), 2)
 
         active_pacts = []
@@ -2641,7 +2677,7 @@ def draw_sidebar(
                     seen_pairs.add(tuple(sorted((h1, h2))))
                     active_pacts.append(f"{h1.title()} & {h2.title()}")
         pact_line = f"Active alliance: {', '.join(active_pacts)}" if active_pacts else "No active alliances across the realm."
-        write(surface, pact_line, (rect.x + 16, rect.y + 44), fonts["tiny"], GOLD if active_pacts else MUTED)
+        write(surface, pact_line, (rect.x + 16, rect.y + 42), fonts["tiny"], GOLD if active_pacts else MUTED)
 
         by_name = {h.name: h for h in houses} if houses else {}
         default_name = next((h.name for h in (houses or []) if h.is_human), "STARK")
@@ -2650,10 +2686,10 @@ def draw_sidebar(
             pov_name = default_name
 
         # House perspective selector tabs
-        tab_y = rect.y + 68
+        tab_y = rect.y + 64
         tab_w = (rect.width - 36) // 3
         for idx, h_name in enumerate(("STARK", "LANNISTER", "TARGARYEN")):
-            tab = pygame.Rect(rect.x + 12 + idx * (tab_w + 6), tab_y, tab_w, 32)
+            tab = pygame.Rect(rect.x + 12 + idx * (tab_w + 6), tab_y, tab_w, 30)
             sidebar_buttons[f"fuzzy_tab_{h_name}"] = tab
             is_sel = h_name == pov_name
             _draw_button(
@@ -2666,14 +2702,38 @@ def draw_sidebar(
                 accent=HOUSE_COLORS[h_name] if is_sel else (90, 108, 106),
             )
 
+        # Sub-mode switcher: LIVE TRACE (All Algorithms) vs FUZZY PAIRS
+        sub_y = tab_y + 36
+        sub_w = (rect.width - 30) // 2
+        for idx, (b_key, b_val, b_lbl) in enumerate(
+            (("brain_tab_trace", "trace", "LIVE TRACE"), ("brain_tab_fuzzy", "fuzzy", "FUZZY PAIRS"))
+        ):
+            sbt = pygame.Rect(rect.x + 12 + idx * (sub_w + 6), sub_y, sub_w, 26)
+            sidebar_buttons[b_key] = sbt
+            is_active = brain_tab == b_val
+            _draw_button(
+                surface,
+                sbt,
+                b_lbl,
+                fonts["tiny"],
+                active=is_active,
+                hovered=bool(mouse and sbt.collidepoint(mouse)),
+                accent=GOLD if is_active else (84, 102, 100),
+            )
+
         pov = by_name.get(pov_name)
         pov_color = HOUSE_COLORS.get(pov_name, GOLD)
+        is_acting_now = acting_house is not None and acting_house.upper() == pov_name
 
         # Selected house status banner
-        status_rect = pygame.Rect(rect.x + 12, tab_y + 42, rect.width - 24, 54)
+        status_rect = pygame.Rect(rect.x + 12, sub_y + 34, rect.width - 24, 48)
         draw_glass_panel(surface, status_rect, (22, 32, 36), pov_color, 8)
-        draw_crest(surface, (status_rect.x + 26, status_rect.centery), pov_name, 14)
-        write(surface, f"HOUSE {pov_name}", (status_rect.x + 48, status_rect.y + 9), fonts["cardtitle"], pov_color)
+        draw_crest(surface, (status_rect.x + 24, status_rect.centery), pov_name, 13)
+        write(surface, f"HOUSE {pov_name}", (status_rect.x + 44, status_rect.y + 7), fonts["cardtitle"], pov_color)
+        if is_acting_now:
+            write_right(surface, "ACTING NOW", status_rect.right - 12, status_rect.y + 9, fonts["tiny"], (130, 228, 165))
+        elif pov is not None and isinstance(pov.last_trace, dict) and pov.last_trace.get("turn"):
+            write_right(surface, f"TURN {pov.last_trace['turn']}", status_rect.right - 12, status_rect.y + 9, fonts["tiny"], GOLD)
         if pov is not None:
             status_lbl = (
                 "ELIMINATED"
@@ -2683,80 +2743,210 @@ def draw_sidebar(
             mode_lbl = f"MINIMAX: {pov.mode}"
         else:
             status_lbl, mode_lbl = "SOLO", "MINIMAX: DECOMPOSED"
-        write(surface, f"{status_lbl} · {mode_lbl}", (status_rect.x + 48, status_rect.y + 30), fonts["tiny"], MUTED)
+        write(surface, f"{status_lbl} · {mode_lbl}", (status_rect.x + 44, status_rect.y + 27), fonts["tiny"], MUTED)
 
-        # Pairwise Fuzzy Cards for each of the other 2 houses
-        others = [n for n in ("STARK", "LANNISTER", "TARGARYEN") if n != pov_name]
-        card_top = status_rect.bottom + 12
-        card_h = 152
-
-        own_weakness = (
-            max(0.0, min(100.0, 100.0 - _scale_strength_100(pov.get_military_strength())))
-            if pov is not None and not pov.is_eliminated()
-            else 100.0
-        )
-
-        for idx, other_name in enumerate(others):
-            card = pygame.Rect(rect.x + 12, card_top + idx * (card_h + 12), rect.width - 24, card_h)
-            other_h = by_name.get(other_name)
-            other_col = HOUSE_COLORS.get(other_name, GOLD)
-            draw_glass_panel(surface, card, (20, 30, 34), other_col, 8)
-            draw_crest(surface, (card.x + 26, card.y + 26), other_name, 13)
-            write(surface, f"WITH HOUSE {other_name}", (card.x + 48, card.y + 10), fonts["cardtitle"], other_col)
-
+        if brain_tab == "trace":
+            trace = pov.last_trace if (pov is not None and isinstance(pov.last_trace, dict)) else {}
             pov_dead = pov is not None and pov.is_eliminated()
-            other_dead = other_h is not None and other_h.is_eliminated()
-            if pov_dead or other_dead:
-                rel_tag = "ELIMINATED"
-            elif pov is not None and pov.allied_with == other_name:
-                rel_tag = "ACTIVE ALLY"
-            else:
-                rel_tag = "RIVAL"
-            write_right(surface, rel_tag, card.right - 14, card.y + 12, fonts["tiny"], GOLD if rel_tag == "ACTIVE ALLY" else MUTED)
 
-            if pov is not None and other_h is not None and not pov_dead and not other_dead:
-                trust = diplomacy.get_trust(pov, other_h) if diplomacy is not None else 50.0
-                # Common threat = 3rd house if alive, otherwise head-to-head rival strength
-                third_name = next((n for n in ("STARK", "LANNISTER", "TARGARYEN") if n not in (pov_name, other_name)), None)
-                third_h = by_name.get(third_name) if third_name else None
-                if third_h is not None and not third_h.is_eliminated():
-                    threat_val = _scale_strength_100(third_h.get_military_strength())
-                    threat_lbl = f"{third_name[:4]} Threat {int(round(threat_val))}"
-                else:
-                    threat_val = _scale_strength_100(other_h.get_military_strength())
-                    threat_lbl = f"Enemy {int(round(threat_val))}"
-                pair_scores = evaluate_diplomacy(threat_val, own_weakness, trust)
+            # ── Card 1: Diplomacy (Fuzzy -> MCTS 500 Rollouts) ─────────
+            c1 = pygame.Rect(rect.x + 12, status_rect.bottom + 10, rect.width - 24, 154)
+            draw_glass_panel(surface, c1, (20, 30, 34), TARGARYEN, 8)
+            write(surface, "DIPLOMACY · FUZZY -> MCTS", (c1.x + 12, c1.y + 9), fonts["micro"], IVORY)
+            mcts = trace.get("mcts") if isinstance(trace.get("mcts"), dict) else {}
+            f_ctx = str(trace.get("fuzzy_context", "A"))
+            ctx_lbl = f"CTX {f_ctx} · {mcts.get('iterations', 500)} ROLLOUTS" if mcts else f"CTX {f_ctx}"
+            write_right(surface, ctx_lbl, c1.right - 12, c1.y + 10, fonts["tiny"], GOLD)
+
+            f_scores = trace.get("fuzzy_scores") if isinstance(trace.get("fuzzy_scores"), dict) else (pov.fuzzy_scores if pov else {})
+            f_line = (
+                f"Fuzzy Bias -> Ally {float(f_scores.get('alliance', 0.0)):.2f} · "
+                f"Betray {float(f_scores.get('betrayal', 0.0)):.2f} · "
+                f"Solo {float(f_scores.get('solo', 0.0)):.2f}"
+            )
+            write(surface, f_line, (c1.x + 12, c1.y + 28), fonts["tiny"], MUTED)
+            pygame.draw.line(surface, (60, 78, 76), (c1.x + 12, c1.y + 46), (c1.right - 12, c1.y + 46), 1)
+
+            options = mcts.get("options") if isinstance(mcts.get("options"), list) else []
+            chosen_dip = str(mcts.get("chosen", ""))
+            partner_name = str(mcts.get("partner", "") or "")
+            if pov_dead:
+                write(surface, "House eliminated — no diplomacy decisions.", (c1.x + 12, c1.y + 64), fonts["tiny"], MUTED)
+            elif not options:
+                write(surface, "Waiting for next AI turn to run 500 MCTS rollouts...", (c1.x + 12, c1.y + 64), fonts["tiny"], MUTED)
+            else:
+                total_v = max(1, sum(int(o.get("visits", 0)) for o in options))
+                for idx, opt in enumerate(options[:3]):
+                    ry = c1.y + 54 + idx * 31
+                    act = str(opt.get("action", ""))
+                    vis = int(opt.get("visits", 0))
+                    avg_q = float(opt.get("avg_q", 0.0))
+                    is_pick = act == chosen_dip
+                    if act == "propose_alliance":
+                        lbl = f"PROPOSE {partner_name[:4]}" if partner_name else "PROPOSE"
+                    elif act == "betray":
+                        lbl = f"BETRAY {partner_name[:4]}" if partner_name else "BETRAY"
+                    else:
+                        lbl = act.upper()
+                    write(surface, lbl, (c1.x + 12, ry + 3), fonts["tiny"], (130, 228, 165) if is_pick else IVORY)
+                    bar = pygame.Rect(c1.x + 114, ry + 6, 122, 9)
+                    pygame.draw.rect(surface, (32, 44, 48), bar, border_radius=4)
+                    fw = int(bar.width * max(0.0, min(1.0, vis / total_v)))
+                    bar_col = (110, 215, 155) if is_pick else STARK
+                    if fw > 0:
+                        pygame.draw.rect(surface, bar_col, (bar.x, bar.y, max(4, fw), bar.height), border_radius=4)
+                    stat_txt = f"Q={avg_q:.2f} ({vis}v)" + (" [PICK]" if is_pick else "")
+                    write_right(surface, stat_txt, c1.right - 12, ry + 3, fonts["tiny"], (130, 228, 165) if is_pick else MUTED)
+
+            # ── Card 2: Combat (Minimax Alpha-Beta Ranked Scores) ──────
+            c2 = pygame.Rect(rect.x + 12, c1.bottom + 10, rect.width - 24, 198)
+            draw_glass_panel(surface, c2, (20, 30, 34), STARK, 8)
+            mm_mode = str(trace.get("minimax_mode", pov.mode if pov else "DECOMPOSED"))
+            write(surface, "COMBAT · MINIMAX (ALPHA-BETA)", (c2.x + 12, c2.y + 9), fonts["micro"], IVORY)
+            write_right(surface, f"{mm_mode} · D3", c2.right - 12, c2.y + 10, fonts["tiny"], GOLD)
+            pygame.draw.line(surface, (60, 78, 76), (c2.x + 12, c2.y + 32), (c2.right - 12, c2.y + 32), 1)
+
+            mm_scores = trace.get("minimax_scores") if isinstance(trace.get("minimax_scores"), dict) else {}
+            chosen_mv = trace.get("chosen_move")
+            if pov_dead:
+                write(surface, "House eliminated — no combat moves.", (c2.x + 12, c2.y + 46), fonts["tiny"], MUTED)
+            elif not mm_scores:
+                write(surface, "No valid attack moves evaluated.", (c2.x + 12, c2.y + 46), fonts["tiny"], MUTED)
+            else:
+                ranked_mm = sorted(
+                    [(("HOLD" if k is None else str(k)), float(v)) for k, v in mm_scores.items()],
+                    key=lambda kv: kv[1],
+                    reverse=True,
+                )
+                top_rows = ranked_mm[:5]
+                # Ensure HOLD and chosen move are always visible in the top 5 rows
+                row_names = {r[0] for r in top_rows}
+                for must_name in (chosen_mv, "HOLD"):
+                    if must_name and must_name not in row_names:
+                        match = next((r for r in ranked_mm if r[0] == must_name), None)
+                        if match is not None:
+                            top_rows = top_rows[:4] + [match]
+                            row_names = {r[0] for r in top_rows}
+
+                vals = [v for _, v in top_rows]
+                v_min, v_max = min(vals), max(vals)
+                span = max(1.0, v_max - v_min)
+                for idx, (m_name, m_val) in enumerate(top_rows):
+                    ry = c2.y + 42 + idx * 29
+                    is_chosen = chosen_mv == m_name
+                    is_hold = m_name == "HOLD"
+                    name_col = (130, 228, 165) if is_chosen else (GOLD if is_hold else IVORY)
+                    disp_name = _trim_text(m_name, fonts["tiny"], 124)
+                    write(surface, disp_name, (c2.x + 12, ry + 3), fonts["tiny"], name_col)
+                    bar = pygame.Rect(c2.x + 142, ry + 6, 126, 9)
+                    pygame.draw.rect(surface, (32, 44, 48), bar, border_radius=4)
+                    frac = 1.0 if v_max == v_min else (m_val - v_min) / span
+                    fw = int(bar.width * max(0.08, min(1.0, frac)))
+                    b_col = (110, 215, 155) if is_chosen else (GOLD if is_hold else STARK)
+                    pygame.draw.rect(surface, b_col, (bar.x, bar.y, max(4, fw), bar.height), border_radius=4)
+                    val_str = f"{m_val:+.1f}" + (" [PICK]" if is_chosen else "")
+                    write_right(surface, val_str, c2.right - 12, ry + 3, fonts["tiny"], (130, 228, 165) if is_chosen else IVORY)
+
+            # ── Card 3: A* Throne Corridor & Greedy Rollout Model ──────
+            c3 = pygame.Rect(rect.x + 12, c2.bottom + 10, rect.width - 24, max(108, rect.bottom - c2.bottom - 20))
+            draw_glass_panel(surface, c3, (22, 30, 34), GOLD, 8)
+            write(surface, "A* CORRIDOR & GREEDY ROLLOUT", (c3.x + 12, c3.y + 9), fonts["micro"], IVORY)
+            pygame.draw.line(surface, (70, 88, 85), (c3.x + 12, c3.y + 30), (c3.right - 12, c3.y + 30), 1)
+
+            a_path = trace.get("astar_path") if isinstance(trace.get("astar_path"), list) else []
+            a_cost = float(trace.get("astar_cost", 0.0))
+            a_bonus = float(trace.get("astar_bonus", 0.0))
+            if a_path and not pov_dead:
+                route_str = " -> ".join(str(n) for n in a_path)
+                write(surface, _trim_text(f"A*: {route_str}", fonts["tiny"], c3.width - 24), (c3.x + 12, c3.y + 38), fonts["tiny"], GOLD)
                 write(
                     surface,
-                    f"Trust {int(round(trust))}/100 · {threat_lbl} · Weak {int(round(own_weakness))}",
-                    (card.x + 48, card.y + 30),
+                    f"Defense Cost: {a_cost:.0f}  ·  Minimax Corridor Bonus: +{a_bonus:.1f}",
+                    (c3.x + 12, c3.y + 56),
                     fonts["tiny"],
                     MUTED,
                 )
-                pygame.draw.line(surface, (60, 78, 76), (card.x + 14, card.y + 52), (card.right - 14, card.y + 52), 1)
-                _draw_fuzzy_bar(surface, card.x, card.right, card.y + 68, "ALLIANCE", pair_scores["alliance"], STARK, fonts)
-                _draw_fuzzy_bar(surface, card.x, card.right, card.y + 104, "BETRAYAL", pair_scores["betrayal"], TARGARYEN, fonts)
             else:
-                write(surface, "Diplomacy inactive (house eliminated)", (card.x + 48, card.y + 30), fonts["tiny"], MUTED)
-                pygame.draw.line(surface, (60, 78, 76), (card.x + 14, card.y + 52), (card.right - 14, card.y + 52), 1)
-                _draw_fuzzy_bar(surface, card.x, card.right, card.y + 68, "ALLIANCE", 0.0, (90, 100, 104), fonts)
-                _draw_fuzzy_bar(surface, card.x, card.right, card.y + 104, "BETRAYAL", 0.0, (90, 100, 104), fonts)
+                write(surface, "A*: No active route to King's Landing", (c3.x + 12, c3.y + 38), fonts["tiny"], MUTED)
 
-        # General SOLO WAR card (overall posture across all rivals)
-        solo_rect = pygame.Rect(rect.x + 12, rect.bottom - 120, rect.width - 24, 108)
-        draw_glass_panel(surface, solo_rect, (22, 30, 34), GOLD, 8)
-        raven_icon = get_sprite("assets/ui/raven.png", (24, 24))
-        if raven_icon:
-            surface.blit(raven_icon, (solo_rect.x + 14, solo_rect.y + 10))
-        write(surface, "GENERAL SOLO POSTURE", (solo_rect.x + 44, solo_rect.y + 10), fonts["cardtitle"], IVORY)
-        write(surface, f"{pov_name} overall independence vs. all rivals", (solo_rect.x + 44, solo_rect.y + 30), fonts["tiny"], MUTED)
-        pygame.draw.line(surface, (70, 88, 85), (solo_rect.x + 14, solo_rect.y + 50), (solo_rect.right - 14, solo_rect.y + 50), 1)
-        solo_val = (
-            float(pov.fuzzy_scores.get("solo", 0.0))
-            if pov is not None and not pov.is_eliminated()
-            else 0.0
-        )
-        _draw_fuzzy_bar(surface, solo_rect.x, solo_rect.right, solo_rect.y + 68, "SOLO WAR", solo_val, GOLD, fonts)
+            greedy = trace.get("greedy") if isinstance(trace.get("greedy"), dict) else None
+            if greedy and not pov_dead:
+                g_line = f"Greedy (MCTS Rollout): {greedy['name']} (res {greedy['res']} - def {greedy['def']} = {int(greedy['score']):+d})"
+                write(surface, _trim_text(g_line, fonts["tiny"], c3.width - 24), (c3.x + 12, c3.y + 82), fonts["tiny"], (170, 224, 240))
+            else:
+                write(surface, "Greedy (MCTS Rollout): No immediate target", (c3.x + 12, c3.y + 82), fonts["tiny"], MUTED)
+        else:
+            # ── FUZZY PAIRS sub-tab (Pairwise Fuzzy Cards + General Solo) ──
+            others = [n for n in ("STARK", "LANNISTER", "TARGARYEN") if n != pov_name]
+            card_top = status_rect.bottom + 10
+            card_h = 142
+
+            own_weakness = (
+                max(0.0, min(100.0, 100.0 - _scale_strength_100(pov.get_military_strength())))
+                if pov is not None and not pov.is_eliminated()
+                else 100.0
+            )
+
+            for idx, other_name in enumerate(others):
+                card = pygame.Rect(rect.x + 12, card_top + idx * (card_h + 10), rect.width - 24, card_h)
+                other_h = by_name.get(other_name)
+                other_col = HOUSE_COLORS.get(other_name, GOLD)
+                draw_glass_panel(surface, card, (20, 30, 34), other_col, 8)
+                draw_crest(surface, (card.x + 26, card.y + 24), other_name, 12)
+                write(surface, f"WITH HOUSE {other_name}", (card.x + 46, card.y + 9), fonts["cardtitle"], other_col)
+
+                pov_dead = pov is not None and pov.is_eliminated()
+                other_dead = other_h is not None and other_h.is_eliminated()
+                if pov_dead or other_dead:
+                    rel_tag = "ELIMINATED"
+                elif pov is not None and pov.allied_with == other_name:
+                    rel_tag = "ACTIVE ALLY"
+                else:
+                    rel_tag = "RIVAL"
+                write_right(surface, rel_tag, card.right - 14, card.y + 11, fonts["tiny"], GOLD if rel_tag == "ACTIVE ALLY" else MUTED)
+
+                if pov is not None and other_h is not None and not pov_dead and not other_dead:
+                    trust = diplomacy.get_trust(pov, other_h) if diplomacy is not None else 50.0
+                    third_name = next((n for n in ("STARK", "LANNISTER", "TARGARYEN") if n not in (pov_name, other_name)), None)
+                    third_h = by_name.get(third_name) if third_name else None
+                    if third_h is not None and not third_h.is_eliminated():
+                        threat_val = _scale_strength_100(third_h.get_military_strength())
+                        threat_lbl = f"{third_name[:4]} Threat {int(round(threat_val))}"
+                    else:
+                        threat_val = _scale_strength_100(other_h.get_military_strength())
+                        threat_lbl = f"Enemy {int(round(threat_val))}"
+                    pair_scores = evaluate_diplomacy(threat_val, own_weakness, trust)
+                    write(
+                        surface,
+                        f"Trust {int(round(trust))}/100 · {threat_lbl} · Weak {int(round(own_weakness))}",
+                        (card.x + 46, card.y + 29),
+                        fonts["tiny"],
+                        MUTED,
+                    )
+                    pygame.draw.line(surface, (60, 78, 76), (card.x + 14, card.y + 49), (card.right - 14, card.y + 49), 1)
+                    _draw_fuzzy_bar(surface, card.x, card.right, card.y + 64, "ALLIANCE", pair_scores["alliance"], STARK, fonts)
+                    _draw_fuzzy_bar(surface, card.x, card.right, card.y + 98, "BETRAYAL", pair_scores["betrayal"], TARGARYEN, fonts)
+                else:
+                    write(surface, "Diplomacy inactive (house eliminated)", (card.x + 46, card.y + 29), fonts["tiny"], MUTED)
+                    pygame.draw.line(surface, (60, 78, 76), (card.x + 14, card.y + 49), (card.right - 14, card.y + 49), 1)
+                    _draw_fuzzy_bar(surface, card.x, card.right, card.y + 64, "ALLIANCE", 0.0, (90, 100, 104), fonts)
+                    _draw_fuzzy_bar(surface, card.x, card.right, card.y + 98, "BETRAYAL", 0.0, (90, 100, 104), fonts)
+
+            # General SOLO WAR card (overall posture across all rivals)
+            solo_rect = pygame.Rect(rect.x + 12, rect.bottom - 114, rect.width - 24, 104)
+            draw_glass_panel(surface, solo_rect, (22, 30, 34), GOLD, 8)
+            raven_icon = get_sprite("assets/ui/raven.png", (22, 22))
+            if raven_icon:
+                surface.blit(raven_icon, (solo_rect.x + 14, solo_rect.y + 10))
+            write(surface, "GENERAL SOLO POSTURE", (solo_rect.x + 42, solo_rect.y + 10), fonts["cardtitle"], IVORY)
+            write(surface, f"{pov_name} overall independence vs. all rivals", (solo_rect.x + 42, solo_rect.y + 29), fonts["tiny"], MUTED)
+            pygame.draw.line(surface, (70, 88, 85), (solo_rect.x + 14, solo_rect.y + 48), (solo_rect.right - 14, solo_rect.y + 48), 1)
+            solo_val = (
+                float(pov.fuzzy_scores.get("solo", 0.0))
+                if pov is not None and not pov.is_eliminated()
+                else 0.0
+            )
+            _draw_fuzzy_bar(surface, solo_rect.x, solo_rect.right, solo_rect.y + 64, "SOLO WAR", solo_val, GOLD, fonts)
 
     if show_log:
         log_entries = turn_log if turn_log is not None else (diplomacy.event_log if diplomacy is not None else None)
@@ -3062,11 +3252,20 @@ def draw_ai_prompt(
     bar_w = min(780, MAP_RECT.width - 560)
     bar = pygame.Rect(MAP_RECT.centerx - bar_w // 2, MAP_RECT.y + 12, bar_w, 48)
     if battle_status:
-        draw_glass_panel(surface, bar, (28, 24, 24), (235, 130, 75), 8)
+        paused_mode = battle_status.startswith("GAME PAUSED")
+        accent = GOLD if paused_mode else (235, 130, 75)
+        bg = (22, 32, 38) if paused_mode else (28, 24, 24)
+        sub_txt = (
+            "Inspect the map, AI Brain [H], or Raven Log [L] while paused."
+            if paused_mode
+            else "War in progress — turn will finish once the battle concludes."
+        )
+        badge_txt = "PAUSED" if paused_mode else "FIGHTING..."
+        draw_glass_panel(surface, bar, bg, accent, 8)
         write(surface, battle_status, (bar.x + 14, bar.y + 8), fonts["small"], GOLD)
-        write(surface, "War in progress — turn will finish once the battle concludes.", (bar.x + 14, bar.y + 26), fonts["tiny"], MUTED)
+        write(surface, sub_txt, (bar.x + 14, bar.y + 26), fonts["tiny"], MUTED)
         badge = pygame.Rect(bar.right - 138, bar.y + 9, 126, 30)
-        _draw_button(surface, badge, "FIGHTING...", fonts["micro"], active=False, hovered=False, accent=(235, 130, 75))
+        _draw_button(surface, badge, badge_txt, fonts["micro"], active=paused_mode, hovered=False, accent=accent)
         return {}
 
     draw_glass_panel(surface, bar, (22, 34, 40), GOLD, 8)
@@ -3236,6 +3435,8 @@ def draw(
     show_log: bool = False,
     selected_fuzzy_house: str | None = None,
     minimax_scores: dict[str | None, float] | None = None,
+    brain_tab: str = "trace",
+    acting_house: str | None = None,
 ) -> dict[str, pygame.Rect]:
     """Render the complete full-screen Game of Thrones: AI Conquest interface."""
     active_fonts = _get_fonts(fonts)
@@ -3263,6 +3464,8 @@ def draw(
         show_log=show_log,
         selected_fuzzy_house=selected_fuzzy_house,
         mouse=mouse,
+        brain_tab=brain_tab,
+        acting_house=acting_house,
     )
 
 

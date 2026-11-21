@@ -165,8 +165,14 @@ def _alphabeta(
     beta: float,
     maximizing: bool,
 ) -> float:
-    if depth == 0:
-        return _evaluate_state(me, eval_enemies, game_map, state)
+    throne_owner = state.owner[game_map.iron_throne.name]
+    if depth == 0 or throne_owner is not None:
+        base = _evaluate_state(me, eval_enemies, game_map, state)
+        if throne_owner == me:
+            return base + depth * 50.0  # Immediate Iron Throne win strictly beats delayed win
+        if throne_owner is not None:
+            return base - depth * 50.0  # Penalize immediate Iron Throne loss
+        return base
 
     if maximizing:
         value = float("-inf")
@@ -281,8 +287,14 @@ def _pick(scores: dict[str | None, float], game_map: Map) -> Territory | None:
     if not scores:
         return None
     best_val = max(scores.values())
-    # Allow slight opening variety among near-tied top moves (within 2.0 pts of optimal)
-    top_attacks = [k for k, v in scores.items() if k is not None and v >= best_val - 2.0]
+    hold_val = scores.get(None, float("-inf"))
+    # Never override HOLD when HOLD is strictly better than every attack move
+    best_attack_val = max((v for k, v in scores.items() if k is not None), default=float("-inf"))
+    if hold_val > best_attack_val:
+        return None
+    # Allow slight opening variety among near-tied top attacks that are at least as good as HOLD
+    floor = max(best_val - 2.0, hold_val)
+    top_attacks = [k for k, v in scores.items() if k is not None and v >= floor]
     if top_attacks:
         chosen = random.choice(top_attacks)
         return game_map.by_name[chosen]

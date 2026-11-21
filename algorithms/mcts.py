@@ -213,6 +213,7 @@ def _rollout(
 def _run_uct(
     actions: dict[str, float],
     simulate: dict[str, callable],
+    trace_out: dict[str, object] | None = None,
 ) -> str:
     children = [_MCTSNode(action, bias) for action, bias in actions.items()]
     parent_visits = 0
@@ -230,7 +231,21 @@ def _run_uct(
             )
         node.total_reward += simulate[node.action]()
         node.visits += 1
-    return max(children, key=lambda c: (c.visits, c.total_reward)).action
+    chosen = max(children, key=lambda c: (c.visits, c.total_reward)).action
+    if trace_out is not None:
+        ranked = sorted(children, key=lambda c: (c.visits, c.total_reward), reverse=True)
+        trace_out["chosen"] = chosen
+        trace_out["iterations"] = MCTS_ITER
+        trace_out["options"] = [
+            {
+                "action": c.action,
+                "visits": c.visits,
+                "avg_q": round(c.total_reward / max(1, c.visits), 3),
+                "bias": round(c.bias, 2),
+            }
+            for c in ranked
+        ]
+    return chosen
 
 
 def get_diplomacy_decision(
@@ -239,6 +254,7 @@ def get_diplomacy_decision(
     game_map: Map,
     fuzzy_scores: dict[str, float],
     diplomacy: Diplomacy,
+    trace_out: dict[str, object] | None = None,
 ) -> tuple[str, House | None]:
     """Context A → ("propose_alliance" | "betray" | "solo", target_house)."""
     others = [h for h in all_houses if h.name != house.name and not h.is_eliminated()]
@@ -267,9 +283,20 @@ def get_diplomacy_decision(
             base, house.name, partner.name, trust, False, random.random() < trust / 100.0, None
         )
     else:
+        if trace_out is not None:
+            trace_out["context"] = "A"
+            trace_out["chosen"] = "solo"
+            trace_out["target"] = None
+            trace_out["options"] = [{"action": "solo", "visits": MCTS_ITER, "avg_q": 0.0, "bias": round(fuzzy_scores.get("solo", 0.0), 2)}]
         return "solo", None
 
-    decision = _run_uct(actions, simulate)
+    decision = _run_uct(actions, simulate, trace_out=trace_out)
+    if trace_out is not None:
+        trace_out["context"] = "A"
+        trace_out["partner"] = (targets.get("propose_alliance") or targets.get("betray"))
+        if trace_out["partner"] is not None:
+            trace_out["partner"] = trace_out["partner"].name
+        trace_out["target"] = targets[decision].name if targets[decision] is not None else None
     return decision, targets[decision]
 
 
@@ -280,6 +307,7 @@ def get_proposal_response(
     game_map: Map,
     fuzzy_scores: dict[str, float],
     diplomacy: Diplomacy,
+    trace_out: dict[str, object] | None = None,
 ) -> str:
     """Context B → "accept" | "reject".
 
@@ -300,4 +328,9 @@ def get_proposal_response(
         "accept": lambda: _rollout(base, house.name, proposer.name, trust, True, False, None),
         "reject": lambda: _rollout(base, house.name, None, trust, False, False, None),
     }
-    return _run_uct(actions, simulate)
+    decision = _run_uct(actions, simulate, trace_out=trace_out)
+    if trace_out is not None:
+        trace_out["context"] = "B"
+        trace_out["partner"] = proposer.name
+        trace_out["target"] = proposer.name if decision == "accept" else None
+    return decision

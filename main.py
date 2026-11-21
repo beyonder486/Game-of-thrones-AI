@@ -13,8 +13,9 @@ from algorithms.astar import get_path
 from algorithms.bfs import get_reachable
 from algorithms.dfs import get_expansion_paths
 from algorithms.fuzzy_diplomacy import evaluate_diplomacy
+from algorithms.greedy import get_greedy_move
 from algorithms.mcts import get_diplomacy_decision, get_proposal_response
-from algorithms.minimax import get_best_move, get_move_scores
+from algorithms.minimax import _pick as _pick_minimax_move, get_best_move, get_move_scores
 from combat import Combat
 from constants import ARMY_COST, FPS, HEIGHT, MAX_RECRUITS_PER_TURN, WIDTH
 from diplomacy import Diplomacy
@@ -203,6 +204,18 @@ def _fadeout_battle_sfx(ms: int = 240) -> None:
     _FIRE_BREATH_CHANNEL = None
 
 
+def _set_battle_sfx_paused(paused: bool) -> None:
+    for ch in (_SWORD_FIGHT_CHANNEL, _FIRE_BREATH_CHANNEL):
+        if ch is not None:
+            try:
+                if paused:
+                    ch.pause()
+                else:
+                    ch.unpause()
+            except pygame.error:
+                pass
+
+
 def _scale_military(strength: float) -> float:
     return max(0.0, min(100.0, strength * 2.5))
 
@@ -237,14 +250,93 @@ class GameController:
         self._active_battle_label: str | None = None
         self._human_proposed_this_turn: bool = False
         self.human_minimax_scores: dict[str | None, float] = {}
+        self.active_trace_house: str | None = None
 
-        # Precompute initial Fuzzy Context A scores so the HUD bars start populated.
+        # Precompute initial Fuzzy Context A + A*/Greedy/Minimax traces so AI BRAIN starts populated.
         for h in self.houses:
-            self._update_context_a_fuzzy(h)
+            fuzzy_init = self._update_context_a_fuzzy(h)
+            mm_init = get_move_scores(h, self.houses, self.map, self.diplomacy)
+            self._save_house_trace(
+                h,
+                fuzzy_context="A",
+                fuzzy_scores=fuzzy_init,
+                mcts_trace={},
+                mm_scores=mm_init,
+                chosen_move=None,
+            )
+
+    def _compute_astar_and_greedy(self, house: House) -> tuple[list[str], float, float, dict[str, object] | None]:
+        """Compute A* lowest-defense route to King's Landing + Greedy baseline pick."""
+        throne = self.map.iron_throne
+        best_path: list[Territory] = []
+        best_cost = 20.0
+        for origin in house.territories:
+            if origin == throne:
+                best_path = [throne]
+                best_cost = 0.0
+                break
+            path = get_path(self.map, origin, throne)
+            if path:
+                cost = sum(float(step.defense_bonus) for step in path[1:])
+                if not best_path or cost < best_cost:
+                    best_path = path
+                    best_cost = cost
+        astar_names = [t.name for t in best_path]
+        astar_bonus = max(0.0, 12.0 - best_cost) * 1.5 if best_path else 0.0
+
+        # Respect active alliance for Greedy comparison
+        enemies = [
+            h
+            for h in self.houses
+            if h.name != house.name and not h.is_eliminated() and not self.diplomacy.are_allied(house, h)
+        ]
+        g_target = get_greedy_move(house, self.map, enemies)
+        greedy_info: dict[str, object] | None = None
+        if g_target is not None:
+            greedy_info = {
+                "name": g_target.name,
+                "res": g_target.resource_value,
+                "def": g_target.defense_bonus,
+                "score": g_target.resource_value - g_target.defense_bonus,
+            }
+        return astar_names, best_cost, astar_bonus, greedy_info
+
+    def _save_house_trace(
+        self,
+        house: House,
+        fuzzy_context: str,
+        fuzzy_scores: dict[str, float],
+        mcts_trace: dict[str, object],
+        mm_scores: dict[str | None, float],
+        chosen_move: str | None,
+    ) -> None:
+        astar_names, astar_cost, astar_bonus, greedy_info = self._compute_astar_and_greedy(house)
+        house.last_trace = {
+            "turn": self.turn,
+            "fuzzy_context": fuzzy_context,
+            "fuzzy_scores": dict(fuzzy_scores),
+            "mcts": dict(mcts_trace),
+            "minimax_mode": house.mode,
+            "minimax_scores": dict(mm_scores),
+            "chosen_move": chosen_move,
+            "astar_path": astar_names,
+            "astar_cost": round(astar_cost, 1),
+            "astar_bonus": round(astar_bonus, 1),
+            "greedy": greedy_info,
+        }
 
     def _refresh_human_minimax_scores(self, house: House) -> None:
         if self.mode == "Human vs AI" and house.is_human and not house.is_eliminated() and self.winner is None:
             self.human_minimax_scores = get_move_scores(house, self.houses, self.map, self.diplomacy)
+            self.active_trace_house = house.name
+            self._save_house_trace(
+                house,
+                fuzzy_context="B" if house.get_pending_proposal() else "A",
+                fuzzy_scores=house.fuzzy_scores,
+                mcts_trace=house.last_trace.get("mcts", {}) if isinstance(house.last_trace, dict) else {},
+                mm_scores=self.human_minimax_scores,
+                chosen_move=None,
+            )
         else:
             self.human_minimax_scores = {}
 
@@ -324,7 +416,7 @@ class GameController:
             "captured": bool(result["territory_transferred"]),
             "target_name": step_target.name,
             "elapsed": 0.0,
-            "duration": 3.2,
+            "duration": 5.2,
         })
 
         # If a house was just eliminated, dissolve its pact and purge all pending proposals to/from it
@@ -336,19 +428,22 @@ class GameController:
         if house.is_eliminated() or self.winner is not None:
             return
 
+        self.active_trace_house = house.name
         pending = house.get_pending_proposal()
         betray_target: House | None = None
+        mcts_trace: dict[str, object] = {}
 
         if pending is not None:
             # IF house.inbox has a pending proposal:
             proposer_name = str(pending.get("from", "")).upper()
             proposer = self.by_name.get(proposer_name)
+            fuzzy_context = "B"
             if proposer is not None and not proposer.is_eliminated():
                 # 1. Fuzzy Logic — evaluate proposal sender's state (Context B)
                 fuzzy_scores = self._update_context_b_fuzzy(house, proposer)
                 # 2. MCTS — simulate accept vs reject outcome
                 response = get_proposal_response(
-                    house, proposer, self.houses, self.map, fuzzy_scores, self.diplomacy
+                    house, proposer, self.houses, self.map, fuzzy_scores, self.diplomacy, trace_out=mcts_trace
                 )
                 # 3. Send YES/NO — update diplomacy state
                 self.diplomacy.resolve_proposal(
@@ -356,14 +451,27 @@ class GameController:
                 )
             else:
                 house.clear_inbox()
+                fuzzy_context = "A"
+                fuzzy_scores = self._update_context_a_fuzzy(house)
 
-            # 4. Minimax — select combat/expansion move
-            target_territory = get_best_move(house, self.houses, self.map, self.diplomacy)
+            # 4. Minimax — score all candidates & select combat/expansion move
+            mm_scores = get_move_scores(house, self.houses, self.map, self.diplomacy)
+            target_territory = _pick_minimax_move(mm_scores, self.map)
+            self._save_house_trace(
+                house,
+                fuzzy_context=fuzzy_context,
+                fuzzy_scores=fuzzy_scores,
+                mcts_trace=mcts_trace,
+                mm_scores=mm_scores,
+                chosen_move=target_territory.name if target_territory is not None else "HOLD",
+            )
             # 5. A* & 6. Combat — route troop movement and resolve attack
             if target_territory is not None:
                 self._execute_attack(house, target_territory)
             else:
                 self.diplomacy.log_event(self.turn, house, "Minimax", "held fortifications")
+                self._active_battle_label = f"HOUSE {house.name} · FORTIFYING & HOLDING"
+                self.animations.append({"type": "hold_pause", "house": house.name, "elapsed": 0.0, "duration": 1.8})
         else:
             # ELSE (no pending proposal):
             # 1. BFS/DFS — update reachability map and deep expansion scouting
@@ -377,7 +485,7 @@ class GameController:
 
             # 3. MCTS — decide: propose_alliance / betray / solo
             decision, target_house = get_diplomacy_decision(
-                house, self.houses, self.map, fuzzy_scores, self.diplomacy
+                house, self.houses, self.map, fuzzy_scores, self.diplomacy, trace_out=mcts_trace
             )
 
             # 4. If propose: queue proposal in target's inbox; if betray: break alliance
@@ -397,15 +505,27 @@ class GameController:
                 self.diplomacy.break_alliance(house, target_house)
                 self.diplomacy.log_diplomacy(self.turn, house, f"betrayed {target_house.name.title()}")
 
-            # 5. Minimax — select combat/expansion move
-            target_territory = get_best_move(
+            # 5. Minimax — score all candidates & select combat/expansion move
+            mm_scores = get_move_scores(
                 house, self.houses, self.map, self.diplomacy, betray_target=betray_target
+            )
+            target_territory = _pick_minimax_move(mm_scores, self.map)
+            self._save_house_trace(
+                house,
+                fuzzy_context="A",
+                fuzzy_scores=fuzzy_scores,
+                mcts_trace=mcts_trace,
+                mm_scores=mm_scores,
+                chosen_move=target_territory.name if target_territory is not None else "HOLD",
             )
             # 6. A* & 7. Combat — route troop movement and resolve attack
             if target_territory is not None:
                 self._execute_attack(house, target_territory)
-            elif decision != "propose_alliance":
-                self.diplomacy.log_event(self.turn, house, "Minimax", "held fortifications")
+            else:
+                if decision != "propose_alliance":
+                    self.diplomacy.log_event(self.turn, house, "Minimax", "held fortifications")
+                self._active_battle_label = f"HOUSE {house.name} · FORTIFYING & HOLDING"
+                self.animations.append({"type": "hold_pause", "house": house.name, "elapsed": 0.0, "duration": 1.8})
 
     def _end_of_round(self) -> None:
         """Steps 8–11 after every house acts."""
@@ -455,8 +575,8 @@ class GameController:
 
     # ── Animated sequential battle-gated turn orchestration ─
     def has_blocking_animation(self) -> bool:
-        """True while a battle/march animation is still playing out on screen."""
-        return any(a.get("type") == "march" for a in self.animations)
+        """True while a battle/march or hold-inspection pause is still playing on screen."""
+        return any(a.get("type") in ("march", "hold_pause") for a in self.animations)
 
     def is_turn_busy(self) -> bool:
         """True while a round or battle animation is actively in progress."""
@@ -511,17 +631,17 @@ class GameController:
         for anim in self.animations:
             anim["elapsed"] = float(anim.get("elapsed", 0.0)) + dt
             if anim.get("type") == "march":
-                dur = max(0.05, float(anim.get("duration", 3.2)))
+                dur = max(0.05, float(anim.get("duration", 5.2)))
                 prog = float(anim["elapsed"]) / dur
                 if prog >= 0.30 and not anim.get("sfx_started"):
                     anim["sfx_started"] = True
-                    _play_battle_sfx(maxtime_ms=1900)
+                    _play_battle_sfx(maxtime_ms=2900)
                 if prog >= 0.34 and not anim.get("fire_sfx_started"):
                     anim["fire_sfx_started"] = True
-                    _play_fire_breath_sfx(maxtime_ms=1750)
+                    _play_fire_breath_sfx(maxtime_ms=2150)
                 elif prog >= 0.80 and not anim.get("sfx_faded"):
                     anim["sfx_faded"] = True
-                    _fadeout_battle_sfx(240)
+                    _fadeout_battle_sfx(280)
         self.animations = [
             a for a in self.animations if float(a.get("elapsed", 0.0)) < float(a.get("duration", 1.0))
         ]
@@ -677,12 +797,28 @@ def main() -> None:
     selected_mode = "AI vs AI"
     selected_house = "STARK"
     selected_fuzzy_house = selected_house
+    brain_tab = "trace"  # "trace" (Live All-Algorithm Trace) | "fuzzy" (Pairwise Fuzzy)
+    last_followed_house: str | None = None
     in_menu = True
     show_win_modal = True
     show_houses = False
     show_log = False
+    is_paused = False
     is_fullscreen = False
     controller = GameController(mode=selected_mode, human_house=selected_house)
+
+    def _restart_current_game() -> None:
+        nonlocal is_paused, show_win_modal, selected_fuzzy_house, last_followed_house
+        _fadeout_battle_sfx(80)
+        is_paused = False
+        show_win_modal = True
+        controller.reset(mode=selected_mode, human_house=selected_house)
+        selected_fuzzy_house = selected_house
+        last_followed_house = None
+        if controller.mode == "Human vs AI":
+            controller._round_in_progress = True
+            controller._round_house_idx = 0
+            controller._pump_animated_turn()
     menu_buttons: dict[str, pygame.Rect] = {}
     human_buttons: dict[str, pygame.Rect] = {}
     ai_buttons: dict[str, pygame.Rect] = {}
@@ -729,6 +865,11 @@ def main() -> None:
                 show_houses = not show_houses
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_l and not in_menu:
                 show_log = not show_log
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_p and not in_menu and controller.winner is None:
+                is_paused = not is_paused
+                _set_battle_sfx_paused(is_paused)
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_r and not in_menu:
+                _restart_current_game()
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_m:
                 _toggle_bgm()
             elif (
@@ -738,10 +879,18 @@ def main() -> None:
             ):
                 if controller.winner is not None and show_win_modal and not controller.has_blocking_animation():
                     show_win_modal = False
-                elif controller.winner is None and controller.mode == "AI vs AI" and not controller.is_turn_busy():
+                elif not is_paused and controller.winner is None and controller.mode == "AI vs AI" and not controller.is_turn_busy():
                     controller.start_animated_turn()
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and mouse is not None:
                 if not in_menu and not (controller.winner is not None and show_win_modal):
+                    if "toggle_pause" in hud_buttons and hud_buttons["toggle_pause"].collidepoint(mouse):
+                        if controller.winner is None:
+                            is_paused = not is_paused
+                            _set_battle_sfx_paused(is_paused)
+                        continue
+                    if "restart_game" in hud_buttons and hud_buttons["restart_game"].collidepoint(mouse):
+                        _restart_current_game()
+                        continue
                     if "toggle_music" in hud_buttons and hud_buttons["toggle_music"].collidepoint(mouse):
                         _toggle_bgm()
                         continue
@@ -758,6 +907,12 @@ def main() -> None:
                             selected_fuzzy_house = h_name
                             tab_clicked = True
                             break
+                    if not tab_clicked:
+                        for b_key, b_val in (("brain_tab_trace", "trace"), ("brain_tab_fuzzy", "fuzzy")):
+                            if b_key in sidebar_buttons and sidebar_buttons[b_key].collidepoint(mouse):
+                                brain_tab = b_val
+                                tab_clicked = True
+                                break
                     if tab_clicked:
                         continue
                     if (
@@ -775,14 +930,8 @@ def main() -> None:
                         if key in menu_buttons and menu_buttons[key].collidepoint(mouse):
                             selected_house = h_name
                     if "start" in menu_buttons and menu_buttons["start"].collidepoint(mouse):
-                        controller.reset(mode=selected_mode, human_house=selected_house)
-                        selected_fuzzy_house = selected_house
                         in_menu = False
-                        show_win_modal = True
-                        if controller.mode == "Human vs AI":
-                            controller._round_in_progress = True
-                            controller._round_house_idx = 0
-                            controller._pump_animated_turn()
+                        _restart_current_game()
                 elif controller.winner is not None and not controller.has_blocking_animation():
                     if show_win_modal:
                         if ("review_board" in win_buttons and win_buttons["review_board"].collidepoint(mouse)) or (
@@ -791,13 +940,17 @@ def main() -> None:
                             show_win_modal = False
                         elif "play_again" in win_buttons and win_buttons["play_again"].collidepoint(mouse):
                             in_menu = True
+                            is_paused = False
                             show_win_modal = True
                     else:
                         if "view_summary" in game_over_buttons and game_over_buttons["view_summary"].collidepoint(mouse):
                             show_win_modal = True
                         elif "play_again" in game_over_buttons and game_over_buttons["play_again"].collidepoint(mouse):
                             in_menu = True
+                            is_paused = False
                             show_win_modal = True
+                elif is_paused:
+                    pass  # Ignore board/turn clicks while paused; HUD buttons & drawers remain active
                 elif controller.mode == "AI vs AI" and not controller.is_turn_busy():
                     if "next_turn" in ai_buttons and ai_buttons["next_turn"].collidepoint(mouse):
                         controller.start_animated_turn()
@@ -813,6 +966,11 @@ def main() -> None:
                         if clicked is not None:
                             controller.handle_human_action("attack", clicked)
 
+        # Auto-follow whichever house just started acting so you see its live decision trace
+        if controller.active_trace_house and controller.active_trace_house != last_followed_house:
+            selected_fuzzy_house = controller.active_trace_house
+            last_followed_house = controller.active_trace_house
+
         active_minimax_scores = (
             controller.human_minimax_scores
             if (
@@ -822,6 +980,11 @@ def main() -> None:
                 and not controller.is_turn_busy()
                 and controller.active_house().is_human
             )
+            else None
+        )
+        acting_now_house = (
+            controller.active_trace_house
+            if (controller.is_turn_busy() or (controller.mode == "Human vs AI" and controller.active_house().is_human))
             else None
         )
         sidebar_buttons = draw(
@@ -839,6 +1002,8 @@ def main() -> None:
             show_log=show_log,
             selected_fuzzy_house=selected_fuzzy_house,
             minimax_scores=active_minimax_scores,
+            brain_tab=brain_tab,
+            acting_house=acting_now_house,
         )
         human_buttons = {}
         ai_buttons = {}
@@ -851,10 +1016,19 @@ def main() -> None:
                 show_houses=show_houses,
                 show_log=show_log,
                 music_enabled=_BGM_ENABLED,
+                is_paused=is_paused,
                 mouse=mouse,
             )
         if not in_menu and (controller.winner is None or controller.has_blocking_animation()):
-            if controller.is_turn_busy():
+            if is_paused:
+                draw_ai_prompt(
+                    canvas,
+                    fonts,
+                    controller.turn,
+                    mouse=mouse,
+                    battle_status="GAME PAUSED · CLICK RESUME [P] TO CONTINUE OR RESTART [R]",
+                )
+            elif controller.is_turn_busy():
                 draw_ai_prompt(
                     canvas,
                     fonts,
@@ -885,7 +1059,8 @@ def main() -> None:
             screen.blit(pygame.transform.smoothscale(canvas, scaled_size), offset)
         pygame.display.flip()
         dt = clock.tick(FPS) / 1000.0
-        controller.update_animations(dt)
+        if not is_paused:
+            controller.update_animations(dt)
         _update_bgm_ducking(dt)
 
     pygame.quit()

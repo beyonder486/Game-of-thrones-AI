@@ -46,6 +46,7 @@ class House:
         }
         self.reachable_holds: set[Territory] = set()
         self.expansion_paths: list[list[Territory]] = []
+        self.last_trace: dict[str, object] = {}
 
     # ── Economy ────────────────────────────────────────────
     def collect_income(self) -> int:
