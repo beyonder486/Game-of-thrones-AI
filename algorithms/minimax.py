@@ -146,10 +146,11 @@ def _apply(state: _State, attacker: str, target: Territory) -> _State:
             s.gold[defender] = 0
     else:
         s.armies[attacker] = max(1, a_armies - int(a_armies * 0.6))
+        def_loss = int(min(a_armies, d_armies) * 0.2)
         if defender:
-            s.armies[defender] = max(1, d_armies - int(d_armies * 0.2))
+            s.armies[defender] = max(1, d_armies - def_loss)
         else:
-            s.garrison[target.name] = max(1, d_armies - int(d_armies * 0.2))
+            s.garrison[target.name] = max(1, d_armies - def_loss)
     return s
 
 
@@ -216,16 +217,14 @@ def _search_root(
     eval_enemies: list[str],
     depth: int,
 ) -> dict[str | None, float]:
-    """Score every root move with alpha-beta below it."""
+    """Score every root move independently with fresh alpha so every move gets its exact score."""
     scores: dict[str | None, float] = {}
-    alpha = float("-inf")
     for target in root_moves:
         child = state if target is None else _apply(state, me, target)
         score = _alphabeta(
-            child, game_map, me, my_forbidden, opponents, eval_enemies, depth - 1, alpha, float("inf"), False
+            child, game_map, me, my_forbidden, opponents, eval_enemies, depth - 1, float("-inf"), float("inf"), False
         )
         scores[target.name if target else None] = score
-        alpha = max(alpha, score)
     return scores
 
 

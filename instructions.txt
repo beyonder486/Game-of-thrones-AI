@@ -72,8 +72,8 @@ Starting Values (`constants.py`, `map.py`):
   - HOUSE STARK:     60 Gold, 14 Armies, Seat: WINTERFELL    (res=9, def=3)
   - HOUSE LANNISTER: 65 Gold, 14 Armies, Seat: CASTERLY ROCK (res=9, def=2)
   - HOUSE TARGARYEN: 60 Gold, 14 Armies, Seat: DRAGONSTONE   (res=8, def=4)
-  - IRON THRONE:     KING'S LANDING (neutral, res=15, def=3, garrison=10)
-                     -> Neutral effective defense = 10 * 3 = 30.
+  - IRON THRONE:     KING'S LANDING (neutral, res=15, def=3, garrison=11)
+                     -> Neutral effective defense = 11 * 3 = 33.
   - All other 15 holds start neutral with 2–4 garrison armies and def 1–3.
   - Initial pairwise trust between every pair of houses = 50.0 / 100.0.
 
@@ -85,15 +85,16 @@ End-of-Round Economy & Supply Limit (`main.py:_end_of_round`):
        - ARMY_COST = 5 Gold per army
        - Reserve floor = 15 Gold (houses keep at least 15G in reserve)
        - Per-round recruitment cap = MAX_RECRUITS_PER_TURN (3 armies)
-       - Realm Army Supply Cap = 12 + 6 * (number of owned holds)
+       - Realm Army Supply Cap = 10 + 4 * (number of owned holds)
        - Formula:
            recruits = min(
                3,
                max(0, (gold - 15) // 5),
-               max(0, (12 + 6 * owned_holds) - armies)
+               max(0, (10 + 4 * owned_holds) - armies)
            )
      This supply cap prevents infinite army stockpiling by repeatedly
-     pressing "HOLD TURN" on a single territory (1 hold caps at 18 armies).
+     pressing "HOLD TURN" and requires owning at least 6 holds (34 cap)
+     to field an army strong enough to take King's Landing (33 defense).
   3. Trust Update:
        Surviving alliances gain +ALLY_BONUS (+5 trust) per round.
   4. Context A Fuzzy Refresh & Win Condition Check:
@@ -176,7 +177,7 @@ Stochastic Battle Resolution (`Combat.resolve_combat`):
           alliance and purges all pending proposals to/from defender.
   ELSE (Defender Holds / Attacker Repelled):
     - attacker_losses = int(attacker.armies * 0.60)
-    - defender_losses = int(defender_armies * 0.20)
+    - defender_losses = int(min(attacker.armies, defender_armies) * 0.20)
     - Territory remains with defender.
 
 Army Floor:

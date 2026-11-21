@@ -171,12 +171,12 @@ def test_mcts_and_sim_consistency() -> None:
     assert decision_b in ("accept", "reject")
 
     # Verify MCTS _Sim invariants:
-    # 1) Economy enforces supply cap (12 + 6 * owned), 15 gold reserve, MAX_RECRUITS_PER_TURN
+    # 1) Economy enforces supply cap (10 + 4 * owned), 15 gold reserve, MAX_RECRUITS_PER_TURN
     sim = _Sim(ctrl.houses, ctrl.map)
     sim.gold["STARK"] = 500.0
-    sim.armies["STARK"] = 17.0  # owns 1 hold -> supply cap = 18
+    sim.armies["STARK"] = 13.0  # owns 1 hold -> supply cap = 14
     sim.economy()
-    assert sim.armies["STARK"] <= 18.0, f"MCTS _Sim economy exceeded supply cap: {sim.armies['STARK']}"
+    assert sim.armies["STARK"] <= 14.0, f"MCTS _Sim economy exceeded supply cap: {sim.armies['STARK']}"
 
     # 2) Candidates skip King's Landing when attacker cannot beat its defense threshold
     sim2 = _Sim(ctrl.houses, ctrl.map)
@@ -214,13 +214,13 @@ def test_game_logic_invariants() -> None:
     assert ended2 is False
     assert len(ctrl.by_name["TARGARYEN"].inbox) == 0, "Cannot send two proposals in one turn"
 
-    # 3) Holding repeatedly respects supply cap (12 + 6 * holds) -> no infinite army exploit
+    # 3) Holding repeatedly respects supply cap (10 + 4 * holds) -> no infinite army exploit
     ctrl_hold = _fresh_controller(mode="Human vs AI", human_house="STARK")
     stark = ctrl_hold.by_name["STARK"]
     for _ in range(15):
         stark.gold += 50
         ctrl_hold._end_of_round()
-    supply_cap = 12 + 6 * len(stark.territories)
+    supply_cap = 10 + 4 * len(stark.territories)
     assert stark.armies <= supply_cap, f"Supply cap violated: {stark.armies} > {supply_cap}"
 
     # 4) BFS/DFS telemetry is persisted on House during step_house_turn

@@ -50,7 +50,7 @@ class Combat:
             transferred = True
         else:
             attacker_losses = int(attacker.armies * 0.6)
-            defender_losses = int(defender_armies * 0.2)
+            defender_losses = int(min(attacker.armies, defender_armies) * 0.2)
             transferred = False
 
         attacker.armies = max(1, attacker.armies - attacker_losses)

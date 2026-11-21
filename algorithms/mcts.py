@@ -117,11 +117,13 @@ class _Sim:
                 self.gold[attacker] += self.gold[defender]
                 self.gold[defender] = 0.0
         else:
-            self.armies[attacker] = max(1.0, self.armies[attacker] - int(self.armies[attacker] * 0.6))
+            a_before = self.armies[attacker]
+            def_loss = int(min(a_before, d_armies) * 0.2)
+            self.armies[attacker] = max(1.0, a_before - int(a_before * 0.6))
             if defender:
-                self.armies[defender] = max(1.0, d_armies - int(d_armies * 0.2))
+                self.armies[defender] = max(1.0, d_armies - def_loss)
             else:
-                self.garrison[j] = max(1, int(d_armies - int(d_armies * 0.2)))
+                self.garrison[j] = max(1, int(d_armies - def_loss))
 
     def economy(self) -> None:
         for name in self.order:
@@ -134,7 +136,7 @@ class _Sim:
                     owned_count += 1
                     res_sum += t.resource_value
             self.gold[name] += BASE_INCOME + res_sum
-            supply_cap = 12 + 6 * owned_count
+            supply_cap = 10 + 4 * owned_count
             affordable = max(0, int(self.gold[name] - 15) // ARMY_COST)
             recruits = min(MAX_RECRUITS_PER_TURN, affordable, max(0, int(supply_cap - self.armies[name])))
             if recruits > 0:

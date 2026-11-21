@@ -529,6 +529,7 @@ class GameController:
 
     def _end_of_round(self) -> None:
         """Steps 8–11 after every house acts."""
+        updated_pacts: set[tuple[str, str]] = set()
         for house in self.houses:
             if house.is_eliminated():
                 continue
@@ -544,7 +545,7 @@ class GameController:
                     "duration": 1.05,
                 })
             # 9. recruit_armies() based on available gold (capped per turn & by realm supply limit)
-            supply_cap = 12 + 6 * len(house.territories)
+            supply_cap = 10 + 4 * len(house.territories)
             recruits = min(
                 MAX_RECRUITS_PER_TURN,
                 max(0, (house.gold - 15) // ARMY_COST),
@@ -552,9 +553,12 @@ class GameController:
             )
             if recruits > 0:
                 house.recruit_armies(recruits)
-            # 10. Update trust history for surviving alliances
+            # 10. Update trust history once per surviving alliance (+5 per round)
             if house.allied_with and self.diplomacy.are_allied(house, house.allied_with):
-                self.diplomacy.update_trust(house, house.allied_with, "keep")
+                pair = tuple(sorted((house.name, house.allied_with)))
+                if pair not in updated_pacts:
+                    updated_pacts.add(pair)
+                    self.diplomacy.update_trust(house, house.allied_with, "keep")
             self._update_context_a_fuzzy(house)
 
         # 11. Check win condition (evaluated after all houses have acted)

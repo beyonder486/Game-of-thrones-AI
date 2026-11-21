@@ -73,7 +73,7 @@ TERRITORY_SPECS: list[tuple[str, int, int, str, int, int, int, str | None, bool]
     ("LANNISPORT", 1, 4, "harbor", 5, 2, 3, None, False),
     ("RIVERRUN", 4, 4, "castle", 5, 2, 4, None, False),
     ("THE TWINS", 7, 4, "castle", 5, 3, 3, None, False),
-    ("KING'S LANDING", 10, 4, "royal", 15, 3, 10, None, True),
+    ("KING'S LANDING", 10, 4, "royal", 15, 3, 11, None, True),
     ("HARRENHAL", 13, 4, "ruins", 4, 1, 4, None, False),
     ("CASTERLY ROCK", 2, 6, "mine", 9, 2, 0, "LANNISTER", False),
     ("OLDTOWN", 5, 7, "harbor", 6, 2, 3, None, False),

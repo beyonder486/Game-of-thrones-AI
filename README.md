@@ -54,8 +54,8 @@ Before diving into the rules and equations, here is what every game and AI term 
 2. **Human vs AI (Player Command):** You command one Great House (Stark, Lannister, or Targaryen) against two AI rivals.
 
 ### How a House Wins
-A house wins immediately when **either** of these happens:
-1. **Iron Throne Victory:** Capture **King's Landing** (instant win).
+The winner is evaluated once the full round completes (after all surviving houses in that round have taken their turn):
+1. **Iron Throne Victory:** Whichever house **holds King's Landing when the round finishes** wins the game — meaning if a house captures the throne mid-round, any rivals acting after it in that same round still get one final chance to storm and reclaim King's Landing before the victory is sealed.
 2. **Elimination Victory:** Be the last surviving house with at least 1 hold (both rival houses have 0 holds).
 
 ### Core Rules
@@ -78,13 +78,13 @@ Westeros has **19 named holds** across a `21 × 8` hex map (`map.py`). Each Grea
 | **House Stark** | Winterfell | *Winter Is Coming* | 60 | 14 | +9 / round | 3 |
 | **House Lannister** | Casterly Rock | *Hear Me Roar* | 65 | 14 | +9 / round | 2 |
 | **House Targaryen** | Dragonstone | *Fire and Blood* | 60 | 14 | +8 / round | 4 |
-| **Iron Throne** | **King's Landing** *(Neutral)* | *Win Objective* | — | 10 *(Neutral Garrison)* | +15 / round | 3 |
+| **Iron Throne** | **King's Landing** *(Neutral)* | *Win Objective* | — | 11 *(Neutral Garrison)* | +15 / round | 3 |
 
 - The other 15 holds start neutral with `2–4` garrison troops and `1–3` defense.
 - Every pair of houses starts with neutral trust: **`50 / 100`**.
 
 **Why these numbers were chosen:**
-- **King's Landing** has `10` neutral soldiers × `3` defense = **`30` effective defense**. That is high enough that nobody can rush it on Turns 1–7 (when armies are ~`14–22`), yet reachable in the mid/late game (`31+` armies), creating a balanced mix of **~80% Iron Throne victories** and **~20% Elimination victories**.
+- **King's Landing** has `11` neutral soldiers × `3` defense = **`33` effective defense**. Paired with the `10 + 4 × holds` supply cap, a house **must conquer at least 6 holds** (`34` cap) before it can storm King's Landing — guaranteeing **100% map coverage** and active border wars before the endgame, with a healthy **~70% Iron Throne / ~30% Elimination** win mix.
 - Giving all 3 houses `14` starting armies and shuffling turn order ensures fair competition (`~33%` win rate each across simulated matches).
 
 ---
@@ -111,7 +111,7 @@ $$
 To prevent an infinite-resource exploit (sitting on 1 castle pressing `HOLD TURN` forever until you have 100 troops), every house has an **Army Supply Cap** based on how many holds it owns:
 
 $$
-\text{SupplyCap}(h) = 12 + 6 \cdot |T(h)|
+\text{SupplyCap}(h) = 10 + 4 \cdot |T(h)|
 $$
 
 Each round, a house automatically buys as many new troops as allowed by **three limits** (whichever is smallest):
@@ -129,7 +129,7 @@ $$
 - `5` = gold cost of 1 army (`ARMY_COST`).
 - $\lfloor x \rfloor$ = round down to a whole number (cannot recruit half a soldier).
 
-*Why this matters:* With 1 hold, $\text{SupplyCap} = 12 + 6(1) = 18$ armies — far below King's Landing's `30` defense. A house **must** conquer at least 3–4 holds ($\text{SupplyCap} = 30\text{–}36$) to build an army strong enough to take the Iron Throne.
+*Why this matters:* With 1 hold, $\text{SupplyCap} = 10 + 4(1) = 14$ armies (equal to starting armies, so holding on Turn 1 yields `0` recruits). A house **must** conquer at least **6 holds** ($\text{SupplyCap} = 34$) to field an army strong enough to beat King's Landing's `33` defense — forcing full map expansion and border conflict instead of passive camping.
 
 ---
 
@@ -171,9 +171,9 @@ $$
 | Result | Condition | Attacker Loses | Defender Loses | What Happens |
 | :--- | :---: | :---: | :---: | :--- |
 | **Attacker Wins** | $P_{\text{att}} > P_{\text{def}}$ | $\lfloor 0.50 \cdot A_{\text{def}} \rfloor$ | $\lfloor 0.80 \cdot A_{\text{def}} \rfloor$ | Attacker takes the hold. If defender now has `0` holds, attacker takes all defender's gold. |
-| **Defender Holds** | $P_{\text{att}} \le P_{\text{def}}$ | $\lfloor 0.60 \cdot A_{\text{att}} \rfloor$ | $\lfloor 0.20 \cdot A_{\text{def}} \rfloor$ | Attacker is repelled; defender keeps the hold. |
+| **Defender Holds** | $P_{\text{att}} \le P_{\text{def}}$ | $\lfloor 0.60 \cdot A_{\text{att}} \rfloor$ | $\lfloor 0.20 \cdot \min(A_{\text{att}}, A_{\text{def}}) \rfloor$ | Attacker is repelled; defender keeps the hold. |
 
-Both sides' surviving armies never drop below `1` ($\max(1, \text{armies} - \text{losses})$).
+Both sides' surviving armies never drop below `1` ($\max(1, \text{armies} - \text{losses})$). Scaling repel defender losses by $\min(A_{\text{att}}, A_{\text{def}})$ ensures a tiny suicide raid (e.g., `6` troops attacking `20`) can only inflict casualties proportional to its own size (`1` troop) rather than exploiting a `3-for-4` kamikaze trade.
 
 ### 3. Understanding Win Odds (Why a Good Move Can Still Be Repelled)
 - **Better than 50/50 odds:** Whenever $A_{\text{att}} > \text{EffectiveDefense}$, the attacker is favored to win.
@@ -183,9 +183,9 @@ $$
 0.80 \cdot A_{\text{att}} > 1.20 \cdot \text{EffectiveDefense} \iff A_{\text{att}} > 1.50 \cdot \text{EffectiveDefense}
 $$
 
-*Example (King's Landing, Effective Defense = 30):*
-- Attacking with **31 armies** gives slightly over **50% chance** to capture the Iron Throne (can still be repelled on an unlucky roll).
-- Attacking with **46+ armies** ($46 > 1.5 \times 30 = 45$) **guarantees** capture 100% of the time.
+*Example (King's Landing, Effective Defense = 33):*
+- Attacking with **34 armies** gives slightly over **50% chance** to capture the Iron Throne (can still be repelled on an unlucky roll).
+- Attacking with **50+ armies** ($50 > 1.5 \times 33 = 49.5$) **guarantees** capture 100% of the time.
 
 ---
 
@@ -222,12 +222,12 @@ When a house loses its last hold (`0` holds), `diplomacy.purge_eliminated()` imm
 ## The 7 AI Algorithms Explained Simply (With Formulas)
 
 ### 1. Breadth-First Search (BFS) — [`algorithms/bfs.py`](algorithms/bfs.py)
-- **Plain English:** Starts at a house's capital and checks all holds 1 step away, then 2 steps away, building a set of everything within quick striking range.
-- **Function:** `get_reachable(game_map, start, n_steps=2)` — saved on `house.reachable_holds` every turn.
+- **Plain English:** Starts at a house's capital and checks all holds 1, 2, and 3 steps away (`n_steps=3`), mapping every hold within 3 marches.
+- **Function & Scope:** `get_reachable(game_map, start, n_steps=3)` — runs each AI turn and stores the result on `house.reachable_holds` as **scouting telemetry** (it does not currently modify Minimax or MCTS move weights).
 
 ### 2. Depth-First Search (DFS) — [`algorithms/dfs.py`](algorithms/dfs.py)
-- **Plain English:** Explores chains of up to 3 connected holds without revisiting any hold, scouting deep expansion corridors into neutral or weakly fortified (`defense_bonus < 2`) regions.
-- **Function:** `get_expansion_paths(game_map, start, depth_limit=3)` — saved on `house.expansion_paths` every turn.
+- **Plain English:** Explores chains of up to 3 connected holds without revisiting any hold, cataloging expansion corridors into neutral or weakly fortified (`defense_bonus < 2`) regions.
+- **Function & Scope:** `get_expansion_paths(game_map, start, depth_limit=3)` — runs each AI turn and stores the result on `house.expansion_paths` as **scouting telemetry** (it does not currently modify Minimax or MCTS move weights).
 
 ### 3. Greedy Search — [`algorithms/greedy.py`](algorithms/greedy.py)
 - **Plain English:** Looks at all adjacent attackable holds and immediately picks the one with the highest net payoff (`gold income minus defense difficulty`), favoring King's Landing on ties.
@@ -282,6 +282,7 @@ $$
   - **Context A (Own Diplomacy):** `enemy_strength` = combined enemies; `trust` = average trust toward rivals.
   - **Context B (Incoming Proposal):** `enemy_strength` = the **3rd (common enemy) house's strength** (so two weaker houses recognize their shared giant enemy and accept an alliance against it); `trust` = trust toward the sender.
 - **Output:** Smooth scores `{"alliance", "betrayal", "solo"}` between `0.00` and `1.00`, passed to MCTS as biases (Fuzzy Logic never makes the final yes/no choice by itself).
+  - *Design note on `solo`:* Because only Rule 4 feeds the `solo` output (using the single `HIGH` triangle `(40, 100, 100)`), centroid defuzzification outputs **`0.00`** when Rule 4 is inactive and approximately **`0.70–0.80`** whenever Rule 4 fires (rather than intermediate values like `0.30`).
 
 ### 6. Minimax with Alpha-Beta Pruning — [`algorithms/minimax.py`](algorithms/minimax.py)
 - **Plain English:** Looks **3 moves ahead** (`MINIMAX_DEPTH = 3`) to choose the best adjacent hold to attack — or **`Hold`** (`None`) if every attack would lose more than it gains. To stay fast, it uses expected-value combat (`luck = 1.0`, meaning any attack with `armies > EffectiveDefense` is predicted to win).
@@ -307,11 +308,12 @@ $$
 
     where $m$ is a candidate move, $S(e)$ is enemy $e$'s military strength, and $S_{\text{total}}$ is the sum of all enemy strengths.
   - **Paranoid Mode (when an alliance exists):** Merges opposing houses into one combined enemy team that never attacks itself and always picks the reply that hurts house $h$ the most.
-- **Smart Safety Filters & Variety:**
+- **Smart Safety Filters, Terminal Win Bonus & Variety:**
   - Never attacks own holds or active ally holds.
   - Won't attack a rival Great House if below `5` armies (`MIN_ATTACK_ARMIES`).
-  - Won't rush `KING'S LANDING` unless `armies >= EffectiveDefense` (`30` when neutral).
-  - Randomly picks among top attacks within `2.0` score points of the best move so every AI game plays out uniquely instead of repeating the exact same map.
+  - Won't rush `KING'S LANDING` unless `armies >= EffectiveDefense` (`33` when neutral).
+  - **Immediate-Win Terminal Check:** Stops searching as soon as `KING'S LANDING` is captured and adds a faster-win bonus ($\pm 50 \cdot \text{remaining depth}$), so winning immediately strictly outscores winning on a later turn.
+  - **Strict Hold Protection & Opening Variety:** If `HOLD` beats every attack move, Minimax always picks `HOLD`. Otherwise, it randomly picks among top attacks within `2.0` score points of optimal (and at least as good as `HOLD`) so every AI game plays out uniquely.
 - **Human Hover Preview:** During your turn, hovering over any valid adjacent hold displays its exact Minimax score (`Minimax: +86.8 · BEST`) compared directly against `Hold`.
 
 ### 7. Monte Carlo Tree Search / UCT — [`algorithms/mcts.py`](algorithms/mcts.py)
@@ -344,14 +346,14 @@ $$
 R = \begin{cases}
 10.0 & \text{if self captures King's Landing (1000 / 100)} \\
 0.0 & \text{if self is eliminated} \\
-\dfrac{\max(0, \ 0.5 T_{\text{val}} + 0.3 S_{\text{mil}} + 0.2 G_{\text{val}} - 0.4 \text{Risk})}{100} & \text{otherwise (halved if a rival takes King's Landing)}
+\dfrac{\max(0, \ 0.5 T_{\text{val}} + 0.3 S_{\text{mil}} + 0.2 R_{\text{inc}} - 0.4 \text{Risk})}{100} & \text{otherwise (halved if a rival takes King's Landing)}
 \end{cases}
 $$
 
   **What every symbol means:**
   - $T_{\text{val}}$ = total value of holds owned by self (`resource_value + defense_bonus`).
   - $S_{\text{mil}}$ = self's military strength (`armies + sum of owned defense bonuses`).
-  - $G_{\text{val}}$ = self's gold treasury.
+  - $R_{\text{inc}}$ = total per-turn resource income of self's owned holds (`sum(t.resource_value)`).
   - $\text{Risk}$ = accumulated alliance-breakdown or betrayal risk penalty.
   - Dividing by `100` (`REWARD_SCALE`) keeps simulation rewards on the same `~0–1` scale as the Fuzzy Bias and exploration term.
 
@@ -403,9 +405,13 @@ Every round runs through all surviving houses in the shuffled turn order (`main.
 
 ## Visuals, Dragons, Armies, Audio & Controls
 
-- **Top Status Bar:** Shows Gold, Armies, Holds for all 3 houses, Turn number, and Mode.
-- **`FUZZY [H]` Drawer (Pairwise Fuzzy Intelligence):** Click `STARK`, `LANNISTER`, or `TARGARYEN` tabs to inspect any house's live pairwise `ALLIANCE` and `BETRAYAL` scores (along with exact Trust, Threat, and Weakness inputs) against each rival, plus its general `SOLO WAR` bar.
+- **Top Status Bar & Session Controls:** Shows Gold, Armies, Holds for all 3 houses, Turn number, Mode, plus top-left **`PAUSE [P]` / `RESUME [P]`** and **`RESTART [R]`** buttons (pausing freezes mid-battle animations, timers, and SFX while keeping tooltips, `AI BRAIN`, and `RAVEN LOG` fully interactive).
+- **`AI BRAIN [H]` Drawer (Live Decision Trace + Pairwise Fuzzy Intelligence):**
+  - Click `STARK`, `LANNISTER`, or `TARGARYEN` tabs — or let it **auto-follow** whichever house is **`ACTING NOW`** during live moves.
+  - **`LIVE TRACE` tab:** Displays the active house's live **Fuzzy → MCTS (500 rollouts)** average reward (`Q`), visit counts, and `[PICK]`, its **Minimax Alpha-Beta** ranked candidate scores + `HOLD`, its **A\* Throne Corridor** path & Minimax bonus, and its **Greedy (MCTS Rollout)** baseline pick side by side.
+  - **`FUZZY PAIRS` tab:** Inspect pairwise `ALLIANCE` and `BETRAYAL` scores (with exact Trust, 3rd-house Threat, and Weakness inputs) against each rival, plus the house's general `SOLO WAR` bar.
 - **`RAVEN LOG [L]` Drawer:** Chronological log of every AI move, battle result, proposal, acceptance, rejection, and betrayal.
+- **Readable Battle & Hold Pacing:** Battles play over **`5.2s`** and AI `HOLD` turns pause briefly for **`1.8s`** so you have comfortable time to read each house's `AI BRAIN` trace as it acts.
 - **Minimax Hover Preview:** Hover over any adjacent attackable hold on your turn to see its live `Minimax` score (`BEST` highlighted green) compared against `Hold`.
 - **3 Flapping, Fire-Breathing House Dragons:**
   - **House Stark:** Custom 8-frame wing-flapping **Frost Dragon** breathing **blue-white Frostfire**.
@@ -440,8 +446,10 @@ python main.py
 | **`ALLY <HOUSE>` / `BETRAY` / `HOLD TURN`** | Send proposal (doesn't end turn), betray & strike, or fortify & pass |
 | **`ACCEPT` / `REJECT`** | Answer a pending alliance offer in your inbox |
 | **`ADVANCE TURN >>` / `SPACE` / `ENTER` / `→`** | Advance one turn in AI vs AI mode (or close victory screen) |
-| **`H`** or **`FUZZY [H]`** | Open/close the Fuzzy Diplomacy Intelligence drawer |
+| **`H`** or **`AI BRAIN [H]`** | Open/close the AI Decision Brain drawer (`LIVE TRACE` & `FUZZY PAIRS`) |
 | **`L`** or **`RAVEN LOG [L]`** | Open/close the Raven's Log drawer |
+| **`P`** or **`PAUSE [P]` / `RESUME [P]`** | Freeze/unfreeze mid-game battles & audio while inspecting the board and drawers |
+| **`R`** or **`RESTART [R]`** | Restart the match immediately from Turn 1 |
 | **`M`** or **`MUSIC: OFF/ON`** | Turn background music ON/OFF *(battle SFX stay active)* |
 | **`F11`** | Toggle fullscreen |
 | **`ESC`** | Close victory modal / return to startup menu / exit |
@@ -472,7 +480,7 @@ It runs **9 automated checks**:
 ├── main.py                      # Entry point, GameController, turn loop, battle audio & music ducking
 ├── constants.py                 # Window/hex layout, colors, economy & AI settings
 ├── map.py                       # 19 Westeros holds, Voronoi neighbor graph, terrain & hex_distance
-├── house.py                     # House state (gold, armies, holds, inbox, fuzzy/BFS/DFS data)
+├── house.py                     # House state (gold, armies, holds, inbox, fuzzy & live AI trace data)
 ├── diplomacy.py                 # Alliances, trust scores, async inbox, betrayal & dead-house purge
 ├── combat.py                    # Effective defense, ±20% combat rolls, casualties & elimination loot
 ├── renderer.py                  # 2.5D map, 3 flapping dragons + fire VFX, ground units, HUD & tooltips
