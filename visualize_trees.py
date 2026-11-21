@@ -2041,6 +2041,8 @@ let mmTimer = null;
 let mmFollow = true;
 let mmSubtreeMode = true;
 let mmExpandedRootChild = null;
+let mmLastExpandTarget = undefined;
+let mmUserZoomed = false;
 let mmSelectedNode = 0;
 let mmLayout = null;
 let mmView = { x: 0, y: 0, w: 1200, h: 680 };
@@ -2098,6 +2100,8 @@ function mmLoadScenario(idx) {
   mmStepIdx = 0;
   mmSelectedNode = 0;
   mmExpandedRootChild = null;
+  mmLastExpandTarget = undefined;
+  mmUserZoomed = false;
   const sc = DATA.minimax[mmIdx];
   const firstChild = sc.nodes[0].children.length ? sc.nodes[0].children[0] : null;
   mmLayout = computeTreeLayout(sc, mmSubtreeMode ? firstChild : null);
@@ -2112,6 +2116,7 @@ function mmLoadScenario(idx) {
 
 function mmFitView() {
   if (!mmLayout) return;
+  mmUserZoomed = false;
   const svg = document.getElementById("mm-svg");
   const rect = svg.getBoundingClientRect();
   const aspect = (rect.width && rect.height) ? rect.width / rect.height : 1.75;
@@ -2124,12 +2129,19 @@ function mmFitView() {
 }
 
 window.addEventListener("resize", () => {
-  if (activeTab === "minimax") mmFitView();
+  if (activeTab === "minimax" && !mmUserZoomed) mmFitView();
 });
 
 function mmFocusNode(nid) {
   if (!mmLayout || !mmLayout.pos[nid]) return;
   const p = mmLayout.pos[nid];
+  if (mmUserZoomed) {
+    // Keep the user's exact zoom level; just pan to keep active node centered
+    mmView.x = p.x - mmView.w / 2;
+    mmView.y = p.y - mmView.h * 0.52;
+    mmApplyViewBox();
+    return;
+  }
   const svg = document.getElementById("mm-svg");
   const rect = svg.getBoundingClientRect();
   const aspect = (rect.width && rect.height) ? rect.width / rect.height : 1.75;
@@ -2139,22 +2151,34 @@ function mmFocusNode(nid) {
   mmApplyViewBox();
 }
 
+function mmSetFollow(val) {
+  mmFollow = val;
+  const btn = document.getElementById("mm-follow");
+  btn.classList.toggle("toggled", mmFollow);
+  btn.textContent = `Auto-Follow: ${mmFollow ? "ON" : "OFF"}`;
+}
+
 function mmApplyViewBox() {
   const svg = document.getElementById("mm-svg");
   svg.setAttribute("viewBox", `${mmView.x.toFixed(1)} ${mmView.y.toFixed(1)} ${mmView.w.toFixed(1)} ${mmView.h.toFixed(1)}`);
 }
 
-// Pan & Zoom on Minimax SVG
+// Pan & Zoom on Minimax SVG (never hijacked while simulation runs)
 (() => {
   const svg = document.getElementById("mm-svg");
-  let dragging = false, sx = 0, sy = 0, vx = 0, vy = 0;
+  let dragging = false, moved = false, sx = 0, sy = 0, vx = 0, vy = 0;
   svg.addEventListener("mousedown", (e) => {
     if (e.target.closest(".mm-node")) return;
-    dragging = true; sx = e.clientX; sy = e.clientY; vx = mmView.x; vy = mmView.y;
+    dragging = true; moved = false; sx = e.clientX; sy = e.clientY; vx = mmView.x; vy = mmView.y;
     svg.style.cursor = "grabbing";
   });
   window.addEventListener("mousemove", (e) => {
     if (!dragging) return;
+    if (Math.hypot(e.clientX - sx, e.clientY - sy) > 4) {
+      moved = true;
+      mmUserZoomed = true;
+      if (mmFollow) mmSetFollow(false);
+    }
     const rect = svg.getBoundingClientRect();
     const dx = (e.clientX - sx) * (mmView.w / rect.width);
     const dy = (e.clientY - sy) * (mmView.h / rect.height);
@@ -2165,12 +2189,13 @@ function mmApplyViewBox() {
   window.addEventListener("mouseup", () => { dragging = false; svg.style.cursor = "grab"; });
   svg.addEventListener("wheel", (e) => {
     e.preventDefault();
-    const factor = e.deltaY > 0 ? 1.14 : 0.88;
+    mmUserZoomed = true;
+    const factor = e.deltaY > 0 ? 1.15 : 0.85;
     const rect = svg.getBoundingClientRect();
     const mx = (e.clientX - rect.left) / rect.width;
     const my = (e.clientY - rect.top) / rect.height;
-    const nw = mmView.w * factor;
-    const nh = mmView.h * factor;
+    const nw = Math.max(220, Math.min(9000, mmView.w * factor));
+    const nh = nw * (mmView.h / mmView.w);
     mmView.x += (mmView.w - nw) * mx;
     mmView.y += (mmView.h - nh) * my;
     mmView.w = nw; mmView.h = nh;
@@ -2276,13 +2301,19 @@ function mmRender() {
       : (sc.nodes[0].children.length ? sc.nodes[0].children[0] : null);
   }
   const expandTarget = mmSubtreeMode ? (mmExpandedRootChild !== null ? mmExpandedRootChild : activeRootChild) : null;
+  const subtreeChanged = expandTarget !== mmLastExpandTarget;
+  mmLastExpandTarget = expandTarget;
   mmLayout = computeTreeLayout(sc, expandTarget);
 
   if (mmSubtreeMode) {
-    mmFitView();
+    if (!mmUserZoomed) {
+      if (subtreeChanged) mmFitView();
+    } else if (mmFollow && !snap.finished) {
+      mmFocusNode(snap.activeNode);
+    }
   } else if (mmFollow && !snap.finished) {
     mmFocusNode(snap.activeNode);
-  } else if (mmFollow && snap.finished) {
+  } else if (mmFollow && snap.finished && !mmUserZoomed) {
     mmFitView();
   }
 
@@ -2484,18 +2515,36 @@ document.getElementById("mm-speed").addEventListener("change", () => { if (mmTim
 document.getElementById("mm-subtree").addEventListener("click", (e) => {
   mmSubtreeMode = !mmSubtreeMode;
   mmExpandedRootChild = null;
+  mmLastExpandTarget = undefined;
+  mmUserZoomed = false;
   e.target.classList.toggle("toggled", mmSubtreeMode);
   e.target.textContent = mmSubtreeMode ? "View: Active Subtree" : "View: Full Tree";
   mmRender();
+  mmFitView();
 });
-document.getElementById("mm-follow").addEventListener("click", (e) => {
-  mmFollow = !mmFollow;
-  e.target.classList.toggle("toggled", mmFollow);
-  e.target.textContent = `Auto-Follow: ${mmFollow ? "ON" : "OFF"}`;
+document.getElementById("mm-follow").addEventListener("click", () => {
+  mmSetFollow(!mmFollow);
+  if (mmFollow) mmRender();
 });
 document.getElementById("mm-fit").addEventListener("click", mmFitView);
-document.getElementById("mm-zoom-in").addEventListener("click", () => { mmView.x += mmView.w * 0.1; mmView.y += mmView.h * 0.1; mmView.w *= 0.8; mmView.h *= 0.8; mmApplyViewBox(); });
-document.getElementById("mm-zoom-out").addEventListener("click", () => { mmView.x -= mmView.w * 0.12; mmView.y -= mmView.h * 0.12; mmView.w *= 1.24; mmView.h *= 1.24; mmApplyViewBox(); });
+document.getElementById("mm-zoom-in").addEventListener("click", () => {
+  mmUserZoomed = true;
+  const nw = Math.max(220, mmView.w * 0.78);
+  const nh = nw * (mmView.h / mmView.w);
+  mmView.x += (mmView.w - nw) / 2;
+  mmView.y += (mmView.h - nh) / 2;
+  mmView.w = nw; mmView.h = nh;
+  mmApplyViewBox();
+});
+document.getElementById("mm-zoom-out").addEventListener("click", () => {
+  mmUserZoomed = true;
+  const nw = Math.min(9000, mmView.w * 1.28);
+  const nh = nw * (mmView.h / mmView.w);
+  mmView.x += (mmView.w - nw) / 2;
+  mmView.y += (mmView.h - nh) / 2;
+  mmView.w = nw; mmView.h = nh;
+  mmApplyViewBox();
+});
 
 // =========================================================================
 // TAB 2: MCTS (UCT) LIVE ROLLOUT SIMULATOR
