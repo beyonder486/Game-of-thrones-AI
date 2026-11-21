@@ -1,424 +1,475 @@
-You are an expert Python game developer and AI systems engineer.
-I have a partially built "Game of Thrones: AI Conquest" game.
-It was built using an earlier plan and is not yet functional.
-Your job is to modify and complete it based on the refined
-design described below. Do not rebuild from scratch —
-work with what exists and patch/extend as needed.
-
-═══════════════════════════════════════════════════════
-CORE CONCEPT
-═══════════════════════════════════════════════════════
-Three houses (Stark, Lannister, Targaryen) compete for
-the Iron Throne through territorial expansion, resource
-management, and political maneuvering.
-
-Supports AI-vs-AI simulation and Human-vs-AI gameplay.
-Each house is strictly limited to ONE action per turn.
-
-═══════════════════════════════════════════════════════
-CRITICAL DESIGN RULES
-═══════════════════════════════════════════════════════
-1. One action per house per turn — no exceptions.
-2. Diplomatic proposals are asynchronous — queued in
-   the receiver's inbox, evaluated next turn.
-3. Betrayal is unilateral — no proposal needed.
-4. No resource sharing between allied houses ever.
-5. Territories captured from a defeated house go to
-   whoever physically captured each one.
-6. Fuzzy Logic outputs scores only — never decisions.
-7. MCTS makes all final diplomatic decisions.
-8. Greedy is used as MCTS rollout opponent model only
-   — not random rollouts.
-
-═══════════════════════════════════════════════════════
-TURN STRUCTURE — IMPLEMENT EXACTLY AS SPECIFIED
-═══════════════════════════════════════════════════════
-Each turn, per house, in order (skip if eliminated):
-
-IF house.inbox has a pending proposal:
-    1. Fuzzy Logic  — evaluate proposal sender's state
-    2. MCTS         — simulate accept vs reject outcome
-    3. Send YES/NO  — update diplomacy state
-    4. Minimax      — select combat/expansion move
-    5. A*           — route troop movement
-    6. Combat       — resolve attack
-
-ELSE (no pending proposal):
-    1. BFS/DFS      — update reachability map
-    2. Fuzzy Logic  — evaluate diplomatic landscape
-    3. MCTS         — decide: propose ally/betray/solo
-    4. If propose:  — queue proposal in target's inbox
-    5. Minimax      — select combat/expansion move
-    6. A*           — route troop movement
-    7. Combat       — resolve attack
-
-After every house acts:
-    8. collect_income() for all houses
-    9. recruit_armies() based on available gold
-    10. Update trust history
-    11. Check win condition
-
-═══════════════════════════════════════════════════════
-ASYNCHRONOUS DIPLOMACY CYCLE
-═══════════════════════════════════════════════════════
-Alliance formation (2-turn handshake):
-
-  Turn N — Proposing house:
-    MCTS decides → propose alliance to target house
-    proposal queued in target.inbox
-    proposing house still makes military move this turn
-
-  Turn N+1 — Receiving house:
-    Fuzzy Logic evaluates proposal sender's state
-    MCTS simulates accept vs reject consequences
-    Sends YES or NO
-    If YES → alliance_active = True for both houses
-             both houses switch Minimax to Paranoid mode
-    If NO  → no change, proposer notified
-
-Betrayal (unilateral, any turn):
-    MCTS decides → betray
-    Attack ally's territory this turn
-    diplomacy.break_alliance(betrayer, victim)
-    trust -= BETRAYAL_PENALTY (30 points)
-    Both houses revert to Decomposed Minimax immediately
-
-No resource sharing:
-    Captured territories → go to capturing house only
-    Defeated house gold  → goes to capturing house only
-    Allied houses remain fully independent economically
-
-═══════════════════════════════════════════════════════
-HOUSE INBOX SYSTEM — ADD TO house.py
-═══════════════════════════════════════════════════════
-Add to House class:
-    inbox = []   # pending diplomatic proposals
-
-    Proposal structure:
-    {
-      "from":    house_name,
-      "type":    "alliance_proposal",
-      "turn":    turn_number
-    }
-
-    Methods to add:
-      receive_proposal(proposal)
-      get_pending_proposal() -> proposal or None
-      clear_inbox()
-
-═══════════════════════════════════════════════════════
-ALGORITHM 1 & 2 — BFS / DFS (no change)
-═══════════════════════════════════════════════════════
-BFS: get_reachable(map, start, n) -> set
-DFS: get_expansion_paths(map, start, depth) -> list
-No modifications needed.
-
-═══════════════════════════════════════════════════════
-ALGORITHM 3 — GREEDY (modify role)
-═══════════════════════════════════════════════════════
-Role 1 (unchanged): standalone attack target selection
-  get_greedy_move(house, map, enemies) -> territory
-  Criteria: argmax(resource_value - defense_bonus)
-  over all adjacent enemy/neutral territories
-
-Role 2 (MCTS rollout opponent model):
-  During MCTS rollout simulations, all houses
-  use get_greedy_move() to pick moves.
-  This replaces random rollouts entirely.
-  Must be importable by mcts.py.
-
-═══════════════════════════════════════════════════════
-ALGORITHM 4 — A* (no change)
-═══════════════════════════════════════════════════════
-get_path(map, start, goal) -> list
-Edge weight: defense_bonus of destination territory
-No modifications needed.
-
-═══════════════════════════════════════════════════════
-ALGORITHM 5 — FUZZY LOGIC (modify scope)
-═══════════════════════════════════════════════════════
-Two contexts where Fuzzy Logic runs:
-
-Context A — Evaluating own diplomatic landscape:
-  Input:
-    enemy_strength  = combined military threat (0-100)
-    own_weakness    = current vulnerability (0-100)
-    trust_history   = avg trust toward enemies (0-100)
-  Output:
-    {"alliance": float, "betrayal": float, "solo": float}
-
-Context B — Evaluating incoming alliance proposal:
-  Input:
-    enemy_strength  = proposal sender's military (0-100)
-    own_weakness    = receiver's current weakness (0-100)
-    trust_history   = trust score toward sender (0-100)
-  Output:
-    Same structure — scores passed to MCTS for
-    accept vs reject decision
-
-Single function handles both contexts:
-  evaluate_diplomacy(enemy_strength, own_weakness,
-                     trust_history) -> dict
-
-Fuzzy outputs scores ONLY.
-Never outputs a decision directly.
-MCTS always makes the final call.
-
-Membership functions: trimf, low/medium/high
-Rules (unchanged):
-  1. enemy_strength HIGH & own_weakness HIGH
-       → alliance HIGH
-  2. trust_history LOW & enemy_strength MEDIUM
-       → alliance LOW
-  3. own_weakness LOW & enemy_strength LOW
-       → betrayal HIGH
-  4. own_weakness LOW & trust_history HIGH
-       → solo HIGH
-  5. enemy_strength HIGH & trust_history HIGH
-       → alliance MEDIUM
-  6. trust_history LOW
-       → betrayal MEDIUM
-
-═══════════════════════════════════════════════════════
-ALGORITHM 6 — MINIMAX (modify evaluation function)
-═══════════════════════════════════════════════════════
-Replace old flat evaluation function with:
-
-def evaluate(house, enemies, map):
-    own_territory_score = sum(
-        t.resource_value + t.defense_bonus
-        for t in house.territories
-    )
-    throne_bonus = 500 if map.iron_throne in
-                          house.territories else 0
-    enemy_score = sum(
-        sum(t.resource_value for t in e.territories) +
-        e.armies * 1.5
-        for e in enemies
-    )
-    return (
-        own_territory_score * 2 +
-        house.armies * 1.5 +
-        house.gold * 0.5 +
-        throne_bonus -
-        enemy_score
-    )
-
-Decomposed mode (no active enemy alliance):
-    total = H2.get_military_strength()
-            + H3.get_military_strength()
-    w2 = H2.get_military_strength() / total
-    w3 = H3.get_military_strength() / total
-    score = w2 * evaluate(H1, [H2], map)
-          + w3 * evaluate(H1, [H3], map)
-    COMMENT: heuristic approximation — opponent
-    interactions evaluated independently.
-
-Paranoid mode (enemy alliance active):
-    score = evaluate(H1, [H2, H3], map)
-    COMMENT: assumption literally valid while
-    alliance holds. MCTS accounts for breakdown.
-
-Switch logic (unchanged):
-    if diplomacy.are_allied(H2, H3):
-        use paranoid mode
-    else:
-        use decomposed mode
-
-Alpha-Beta Pruning in both modes.
-Depth limit: MINIMAX_DEPTH = 3
-
-═══════════════════════════════════════════════════════
-ALGORITHM 7 — MCTS (modify for two contexts)
-═══════════════════════════════════════════════════════
-Context A — Own diplomatic decision:
-  Actions: ["propose_alliance", "betray", "solo"]
-  Fuzzy biases from Context A evaluation
-
-Context B — Responding to incoming proposal:
-  Actions: ["accept", "reject"]
-  Fuzzy biases from Context B evaluation
-
-UCT formula (both contexts):
-  UCT = (Q/N) + UCT_C * sqrt(ln(N_parent)/N)
-        + fuzzy_score[action]
-  UCT_C = 1.414
-
-Rollout policy:
-  All houses use get_greedy_move() during simulation.
-  NOT random moves.
-
-Alliance breakdown in rollouts:
-  Each rollout step:
-    p_break = 1 - (trust_history / 100)
-    if random() < p_break: alliance breaks
-    switch to solo play for remainder of rollout
-
-Reward function (strictly prioritized):
-  if iron_throne_captured: return 1000
-  return (0.5 * territory_score +
-          0.3 * military_strength +
-          0.2 * resource_score -
-          0.4 * alliance_risk_penalty)
-
-Iterations: MCTS_ITER = 500
-Rollout depth: MCTS_ROLLOUT_DEPTH = 10
-
-Expose:
-  get_diplomacy_decision(house, all_houses, map,
-                         fuzzy_scores, diplomacy)
-  -> ("propose_alliance"|"betray"|"solo", target_house)
-
-  get_proposal_response(house, proposer, all_houses,
-                        map, fuzzy_scores, diplomacy)
-  -> ("accept"|"reject")
-
-═══════════════════════════════════════════════════════
-DIPLOMACY SYSTEM (modify diplomacy.py)
-═══════════════════════════════════════════════════════
-Add to Diplomacy class:
-
-  pending_proposals (dict):
-    tracks who proposed to whom and on which turn
-
-  Methods to add/modify:
-    queue_proposal(proposer, target, turn)
-    get_proposal(target_house) -> proposal or None
-    resolve_proposal(proposer, target, accepted: bool)
-      if accepted:
-          form_alliance(proposer, target)
-      else:
-          log rejection
-    break_alliance(h1, h2):
-        allied_with = None for both
-        update_trust(h1, h2, "betray")
-        switch both to Decomposed Minimax immediately
-
-Trust updates (unchanged):
-    "betray" → trust -= 30
-    "keep"   → trust += 5
-
-═══════════════════════════════════════════════════════
-COMBAT SYSTEM (modify combat.py)
-═══════════════════════════════════════════════════════
-Update resolve_combat() with casualty model:
-
-  attacker_power = attacker.armies * random(0.8, 1.2)
-  defender_power = defender.armies
-                   * territory.defense_bonus
-                   * random(0.8, 1.2)
-
-  if attacker_power > defender_power:
-      attacker.armies -= int(defender.armies * 0.5)
-      defender.armies -= int(defender.armies * 0.8)
-      territory transfers to attacker
-      if defender had gold and no territories left:
-          attacker.gold += defender.gold
-          defender.gold = 0
-  else:
-      attacker.armies -= int(attacker.armies * 0.6)
-      defender.armies -= int(defender.armies * 0.2)
-      territory stays with defender
-
-Both sides always take casualties.
-Result dict must include:
-  winner, loser, territory,
-  attacker_losses, defender_losses,
-  territory_transferred (bool)
-
-═══════════════════════════════════════════════════════
-STARTING VALUES (update constants.py)
-═══════════════════════════════════════════════════════
-Stark:     gold=50, armies=10
-Lannister: gold=70, armies=15
-Targaryen: gold=40, armies=12
-
-Starting territories:
-  Winterfell:    resource=8,  defense=3  → Stark
-  Casterly Rock: resource=10, defense=2  → Lannister
-  Dragonstone:   resource=6,  defense=4  → Targaryen
-  All others:    neutral
-
-Iron Throne territory: King's Landing
-  resource=15, defense=2
-  Worth 500 bonus in Minimax evaluation.
-
-═══════════════════════════════════════════════════════
-RENDERER — UPDATE HUD (modify renderer.py)
-═══════════════════════════════════════════════════════
-Add to each house card:
-  - Inbox indicator: "PROPOSAL PENDING" if inbox
-    has a pending proposal
-  - Active Minimax mode: Decomposed / Paranoid
-  - Fuzzy scores: ALLY / BETRAY / SOLO (0.0-1.0)
-    shown as labeled progress bars
-
-Update turn log format:
-  "[Turn N] [House] used [Algo]: [Decision]"
-  Add diplomacy events:
-  "[Turn N] [House] proposed alliance to [House]"
-  "[Turn N] [House] accepted/rejected alliance"
-  "[Turn N] [House] betrayed [House]"
-
-═══════════════════════════════════════════════════════
-ALGORITHM INTERACTION CHAINS — PRESERVE THESE
-═══════════════════════════════════════════════════════
-Chain 1 — Own diplomacy:
-  Fuzzy(Context A) → biases MCTS(Context A)
-  → propose/betray/solo decision
-  → if propose: queue in target inbox
-  → if betray: break alliance, switch Minimax mode
-
-Chain 2 — Responding to proposal:
-  Fuzzy(Context B) → biases MCTS(Context B)
-  → accept/reject decision
-  → if accept: alliance active, Paranoid Minimax
-
-Chain 3 — Post-elimination:
-  Third house eliminated
-  → MCTS immediately re-evaluates alliance utility
-  → Fuzzy detects rising betray_desirability
-  → Alliance breaks naturally, no scripting needed
-
-Chain 4 — Combat:
-  Minimax → picks target territory
-  A* → routes troops to target
-  Combat → resolves with casualty model
-
-Chain 5 — Greedy reuse:
-  Greedy → standalone attack selection
-  Greedy → MCTS rollout opponent model
-
-═══════════════════════════════════════════════════════
-KNOWN APPROXIMATIONS — DOCUMENT IN CODE
-═══════════════════════════════════════════════════════
-1. Decomposed Minimax: opponent interactions evaluated
-   independently — may underestimate coordination.
-
-2. Paranoid Minimax: assumes full coalition cooperation
-   — valid while alliance holds, not after breakdown.
-
-3. MCTS rollouts: use Greedy opponent model, not true
-   recursive MCTS — computationally tractable tradeoff.
-
-4. Fuzzy Logic: stateless — evaluates current snapshot
-   only, not future trajectory.
-
-═══════════════════════════════════════════════════════
-MODIFICATION ORDER
-═══════════════════════════════════════════════════════
-Modify files in this order:
-  1. constants.py    — update starting values
-  2. house.py        — add inbox system
-  3. diplomacy.py    — add proposal queue, break logic
-  4. algorithms/fuzzy_diplomacy.py — add Context B
-  5. algorithms/minimax.py — update evaluation function
-  6. algorithms/mcts.py    — add Context B response
-  7. algorithms/greedy.py  — verify rollout exportability
-  8. combat.py       — update casualty model
-  9. renderer.py     — update HUD
-  10. main.py        — update turn loop
-
-Paste the existing file before requesting each
-modification. Modify only what is specified.
-Do not rewrite unrelated logic.
+=======================================================================
+GAME OF THRONES: AI CONQUEST — COMPLETE GAME MECHANICS & AI ARCHITECTURE
+=======================================================================
+
+1. OVERVIEW & CORE CONCEPT
+-----------------------------------------------------------------------
+"Game of Thrones: AI Conquest" is a turn-based 2.5D isometric strategy
+game set on a hex-grid map of Westeros. Three Great Houses — STARK,
+LANNISTER, and TARGARYEN — compete for the Iron Throne through
+territorial conquest, economy management, military planning, and
+emergent political diplomacy (alliances, trust, and betrayal).
+
+Supported Modes:
+  - AI vs AI (Observer Mode): All 3 houses are controlled by the 7-algorithm
+    AI stack. Viewers step turns manually via "ADVANCE TURN >>" or
+    SPACE / ENTER / RIGHT ARROW.
+  - Human vs AI (Player Command): The player commands one Great House
+    (Stark, Lannister, or Targaryen) while the other two are driven by AI.
+
+Win Conditions (checked after every combat and at end of round):
+  1. Iron Throne Victory: Capture KING'S LANDING (instant win).
+  2. Total Elimination Victory: Be the last surviving house with >= 1 hold.
+
+Turn Order:
+  - At the start of every new game, turn order among the 3 houses is
+    shuffled randomly (`random.shuffle(self.houses)`) so no house holds
+    a permanent first-mover advantage.
+
+
+=======================================================================
+2. CRITICAL DESIGN RULES
+=======================================================================
+1. One military action per house per turn (Attack a territory, Betray +
+   strike, or Hold fortifications).
+2. Diplomatic proposals are asynchronous: sending a proposal queues it
+   in the receiver's inbox (`house.inbox`) and does NOT consume the
+   proposer's military move for that turn. The receiver evaluates it on
+   their next turn.
+3. Betrayal is unilateral — no proposal or consent is required.
+4. No resource or army sharing between allied houses. Captured holds
+   and eliminated-house gold go strictly to the house that physically
+   captures the territory.
+5. Eliminated houses (0 territories) are immediately stripped of active
+   alliances and all pending proposals to/from them are purged. Alliances
+   cannot be proposed or formed once fewer than 3 houses remain alive.
+6. Strict AI Layer Separation:
+     - Fuzzy Logic outputs continuous desirability scores (0.00–1.00) ONLY;
+       it never makes a final decision.
+     - MCTS makes ALL final diplomatic decisions (using Fuzzy scores as
+       UCT prior biases).
+     - Greedy is used both as a standalone baseline and as the deterministic
+       opponent rollout model inside MCTS (never random rollouts).
+     - Minimax + A* make ALL military/combat decisions (including when to
+       Hold). Hold is a military decision, NOT a Fuzzy diplomacy output.
+
+
+=======================================================================
+3. MAP, STARTING STATE, ECONOMY & SUPPLY CAP
+=======================================================================
+Map Geometry (`map.py`):
+  - 21 x 8 offset hex grid containing 19 named territories across Westeros.
+  - Each land hex is assigned to its nearest territory seat (Voronoi
+    regions), and the territory adjacency graph (`Territory.neighbors`) is
+    derived strictly from touching hex regions on the map.
+  - Each territory has:
+      * resource_value : Gold generated per round
+      * defense_bonus  : Fortification level (1 to 4)
+      * armies         : Neutral garrison size (when unowned)
+      * owner          : "STARK", "LANNISTER", "TARGARYEN", or None
+
+Starting Values (`constants.py`, `map.py`):
+  - HOUSE STARK:     60 Gold, 14 Armies, Seat: WINTERFELL    (res=9, def=3)
+  - HOUSE LANNISTER: 65 Gold, 14 Armies, Seat: CASTERLY ROCK (res=9, def=2)
+  - HOUSE TARGARYEN: 60 Gold, 14 Armies, Seat: DRAGONSTONE   (res=8, def=4)
+  - IRON THRONE:     KING'S LANDING (neutral, res=15, def=3, garrison=10)
+                     -> Neutral effective defense = 10 * 3 = 30.
+  - All other 15 holds start neutral with 2–4 garrison armies and def 1–3.
+  - Initial pairwise trust between every pair of houses = 50.0 / 100.0.
+
+End-of-Round Economy & Supply Limit (`main.py:_end_of_round`):
+  After all surviving houses have acted in a round:
+  1. Income Collection:
+       income = BASE_INCOME (10) + sum(t.resource_value for owned holds)
+  2. Automatic Army Recruitment:
+       - ARMY_COST = 5 Gold per army
+       - Reserve floor = 15 Gold (houses keep at least 15G in reserve)
+       - Per-round recruitment cap = MAX_RECRUITS_PER_TURN (3 armies)
+       - Realm Army Supply Cap = 12 + 6 * (number of owned holds)
+       - Formula:
+           recruits = min(
+               3,
+               max(0, (gold - 15) // 5),
+               max(0, (12 + 6 * owned_holds) - armies)
+           )
+     This supply cap prevents infinite army stockpiling by repeatedly
+     pressing "HOLD TURN" on a single territory (1 hold caps at 18 armies).
+  3. Trust Update:
+       Surviving alliances gain +ALLY_BONUS (+5 trust) per round.
+  4. Context A Fuzzy Refresh & Win Condition Check:
+       Recomputes Fuzzy diplomacy telemetry and advances the turn counter.
+
+
+=======================================================================
+4. COMPLETE TURN PIPELINE (`main.py`)
+=======================================================================
+For each surviving house in the shuffled turn order:
+
+A. AI House Turn (`step_house_turn`):
+  IF house.inbox has a pending proposal from a surviving proposer:
+    1. Fuzzy Logic (Context B) — evaluate alliance/betrayal/solo scores
+       using the 3rd (common enemy) house's strength, receiver's own
+       weakness, and trust toward the proposer.
+    2. MCTS (Context B)        — simulate "accept" vs "reject" futures.
+    3. Resolve Proposal        — accept (form alliance -> PARANOID mode)
+                                 or reject (clear inbox, log rejection).
+    4. BFS / DFS               — update `house.reachable_holds` (2 steps)
+                                 and `house.expansion_paths` (depth 3).
+    5. Minimax (Alpha-Beta)    — select best adjacent attack or Hold (None).
+    6. A* Routing & Combat     — resolve battle if target selected.
+
+  ELSE (no pending proposal):
+    1. BFS / DFS               — update `house.reachable_holds` and
+                                 `house.expansion_paths`.
+    2. Fuzzy Logic (Context A) — evaluate diplomatic landscape against all
+                                 active rivals.
+    3. MCTS (Context A)        — choose "propose_alliance", "betray",
+                                 or "solo".
+       - If "propose_alliance": queue proposal in target.inbox (house
+         still performs its military move this same turn).
+       - If "betray": break alliance (-30 trust), log betrayal, and pass
+         `betray_target=ally` to Minimax for an immediate strike.
+    4. Minimax (Alpha-Beta)    — select best adjacent attack or Hold (None).
+    5. A* Routing & Combat     — resolve battle if target selected.
+
+B. Human Player Turn (`handle_human_action`):
+  - On turn start, the controller resets `_human_proposed_this_turn = False`,
+    refreshes Fuzzy scores (Context B if inbox has a proposal, else Context A),
+    and precomputes `human_minimax_scores` for live territory-hover previews.
+  - If an inbox proposal is pending: player clicks ACCEPT or REJECT first
+    (does not end turn; refreshes Minimax hover scores afterward).
+  - Player may optionally send 1 alliance proposal (`ALLY <HOUSE>`) without
+    ending their turn (blocked if < 3 houses survive or already proposed
+    this turn).
+  - Player concludes their turn with ONE military action:
+      * Click an adjacent enemy/neutral territory to attack it directly.
+      * Click a distant territory to march 1 border step along its lowest-
+        defense A* route.
+      * Click `BETRAY <ALLY>` to break an alliance and immediately launch
+        Minimax's best strike against the former ally.
+      * Click `HOLD TURN` to fortify and pass.
+
+
+=======================================================================
+5. COMBAT MECHANICS & CASUALTY MODEL (`combat.py`)
+=======================================================================
+Effective Defense (`effective_defense`):
+  - Neutral Garrison (small 2–10 force):
+      base_def = garrison_armies * territory.defense_bonus
+      (Example: King's Landing = 10 * 3 = 30.0)
+  - Rival Great House (full army pool):
+      base_def = defender.armies * (1.0 + 0.05 * territory.defense_bonus)
+      (Provides +5% to +20% fortification bonus without freezing rival
+      borders into a permanent standoff.)
+
+Stochastic Battle Resolution (`Combat.resolve_combat`):
+  attacker_power = attacker.armies * Uniform(0.80, 1.20)
+  defender_power = base_def        * Uniform(0.80, 1.20)
+
+  IF attacker_power > defender_power (Attacker Wins):
+    - attacker_losses = int(defender_armies * 0.50)
+    - defender_losses = int(defender_armies * 0.80)
+    - Territory transfers to attacker.
+    - If defender loses its final territory (eliminated):
+        * All of defender's remaining gold transfers to the capturer.
+        * `diplomacy.purge_eliminated(defender)` dissolves any active
+          alliance and purges all pending proposals to/from defender.
+  ELSE (Defender Holds / Attacker Repelled):
+    - attacker_losses = int(attacker.armies * 0.60)
+    - defender_losses = int(defender_armies * 0.20)
+    - Territory remains with defender.
+
+Army Floor:
+  - Surviving armies on both sides are always clamped to `max(1, ...)`.
+
+Expected Value vs. Live Variance:
+  - Inside deterministic Minimax search, `Uniform(0.80, 1.20)` is
+    approximated by its mean `1.0`, so `attacker > base_def` represents
+    a > 50% win probability.
+  - Because live combat rolls `±20%`, a narrow favorite can still be
+    repelled on an unlucky roll. A 100% guaranteed win regardless of RNG
+    requires `attacker.armies > 1.5 * base_def` (since 1.2 / 0.8 = 1.5).
+
+
+=======================================================================
+6. DIPLOMACY, ALLIANCES, TRUST & BETRAYAL (`diplomacy.py`)
+=======================================================================
+What an Active Alliance Does:
+  1. Strict Non-Aggression: Minimax places the active ally in
+     `my_forbidden`, so an allied AI will NEVER attack its ally without
+     first choosing MCTS betrayal (even if surrounded only by ally holds,
+     it chooses Hold instead).
+  2. Coordinated Focus Against the 3rd House: Both allies direct their
+     separate turns against neutral holds and the 3rd house.
+  3. Paranoid Minimax Mode Sync: Forming an alliance immediately switches
+     ALL surviving houses (both allies AND the lone 3rd house) to
+     `PARANOID` mode. Dissolving the alliance resets all houses to
+     `DECOMPOSED` mode.
+  4. Trust Growth: Every round the alliance holds adds `+5` trust
+     (`ALLY_BONUS`) to the pair (clamped to 0–100).
+  5. No Resource or Army Sharing: Gold, income, troops, and captured
+     territories remain completely separate.
+
+Alliance Formation (2-Turn Asynchronous Handshake):
+  - Turn N: Proposer calls `diplomacy.queue_proposal(proposer, target, N)`.
+    Proposal `{"from": proposer, "type": "alliance_proposal", "turn": N}`
+    is placed in `target.inbox`. Proposer still makes its military move.
+  - Turn N+1: Receiver evaluates the proposal (Fuzzy Context B + MCTS
+    Context B for AI; ACCEPT/REJECT buttons for Human).
+    * Accept -> `form_alliance(proposer, target, turn)`
+    * Reject -> clear inbox and log rejection.
+
+Three Ways Betrayal Occurs (All Apply -30 `BETRAYAL_PENALTY` & Log):
+  1. Explicit Betrayal: AI MCTS chooses `"betray"`, or Human clicks
+     `BETRAY <ALLY>`. Breaks pact, subtracts 30 trust, and immediately
+     strikes the former ally on the same turn.
+  2. Attacking an Ally Directly (Human): Clicking an ally's hold in
+     `_execute_attack()` automatically triggers `break_alliance()` (-30
+     trust + betrayal log) right before combat resolves.
+  3. Switching Allies Automatically: Accepting a new alliance with House C
+     while already allied with House B inside `form_alliance()`
+     automatically betrays House B (-30 trust + `"betrayed B to ally with C"`).
+
+
+=======================================================================
+7. THE 7 AI ALGORITHMS & HOW THEY FUNCTION TOGETHER
+=======================================================================
+
+ALGORITHM 1 — BFS (`algorithms/bfs.py`)
+  - Function: `get_reachable(game_map, start, n_steps) -> set[Territory]`
+  - Role: Breadth-first traversal finding all territories reachable within
+    `n_steps` graph hops (run at `n=2` each turn and persisted on
+    `house.reachable_holds`). Used for proximity and reachability checks.
+
+ALGORITHM 2 — DFS (`algorithms/dfs.py`)
+  - Function: `get_expansion_paths(game_map, start, depth_limit) -> list[list[Territory]]`
+  - Role: Depth-first backtracking search discovering all simple (cycle-free)
+    corridors up to `depth_limit=3` into neutral or lightly defended
+    (`defense_bonus < 2`) territories. Persisted on `house.expansion_paths`.
+
+ALGORITHM 3 — GREEDY (`algorithms/greedy.py`)
+  - Functions: `greedy_pick(candidates)` and `get_greedy_move(house, game_map, enemies)`
+  - Formula: `argmax(resource_value - defense_bonus)` with ties favoring
+    `KING'S LANDING`.
+  - Dual Role:
+      1. Standalone heuristic target selector.
+      2. Opponent & player rollout policy inside MCTS (`mcts.py` imports
+         `greedy_pick` directly so every simulated turn in MCTS uses Greedy
+         decisions rather than random moves).
+
+ALGORITHM 4 — A* PATHFINDING (`algorithms/astar.py`)
+  - Function: `get_path(game_map, start, goal) -> list[Territory]`
+  - Cost g(n): Sum of `defense_bonus` of each entered territory (lowest-risk
+    multi-turn corridor).
+  - Heuristic h(n): `hex_distance((a.col, a.row), (b.col, b.row))` using
+    cube-coordinate hex distance (`map.py:hex_distance`).
+  - Dual Role:
+      1. AI Minimax Evaluation: `_throne_path_costs()` caches the A*
+         defense-weighted path cost from every hold to `KING'S LANDING`
+         and rewards AI moves that advance along the cheapest A* corridor.
+      2. Human Multi-Turn Routing: Clicking any distant non-adjacent hold
+         plots the optimal A* path and automatically attacks the first
+         border territory along that route.
+
+ALGORITHM 5 — MAMDANI FUZZY LOGIC (`algorithms/fuzzy_diplomacy.py`)
+  - Function: `evaluate_diplomacy(enemy_strength, own_weakness, trust_history) -> dict`
+  - Inputs (all 0–100): `enemy_strength`, `own_weakness`, `trust_history`.
+  - Outputs (all 0.00–1.00): `{"alliance": float, "betrayal": float, "solo": float}`.
+  - Membership Functions: Triangular (`trimf`):
+      * LOW    = (0, 0, 60)
+      * MEDIUM = (20, 50, 80)
+      * HIGH   = (40, 100, 100)
+  - Inference: Mamdani min-implication, max-aggregation, centroid
+    defuzzification (uses `scikit-fuzzy` if installed, pure-NumPy fallback
+    otherwise).
+  - 6 Linguistic Rules:
+      R1: enemy HIGH & weakness HIGH      -> alliance HIGH
+      R2: trust LOW  & enemy MEDIUM       -> alliance LOW
+      R3: weakness LOW & enemy LOW        -> betrayal HIGH
+      R4: weakness LOW & trust HIGH       -> solo HIGH
+      R5: enemy HIGH & trust HIGH         -> alliance MEDIUM
+      R6: trust LOW                       -> betrayal MEDIUM
+  - Two Runtime Contexts:
+      * Context A (Own Diplomacy): `enemy_strength` = combined enemies,
+        `own_weakness` = 100 - scaled own strength, `trust` = avg enemy trust.
+      * Context B (Incoming Proposal): `enemy_strength` = 3rd (common enemy)
+        house's strength when alive (fallback: proposer), `own_weakness` =
+        receiver weakness, `trust` = trust toward proposer.
+
+ALGORITHM 6 — MINIMAX WITH ALPHA-BETA PRUNING (`algorithms/minimax.py`)
+  - Functions: `get_move_scores(...) -> dict[str|None, float]` and
+    `get_best_move(...) -> Territory | None`.
+  - Depth Limit: `MINIMAX_DEPTH = 3`, with Alpha-Beta pruning.
+  - Evaluation Function (`_evaluate_state`):
+      score = (own_territory_score * 2)
+            + (own_armies * 1.5)
+            + (own_gold * 0.5)
+            + THRONE_BONUS (500 if owns King's Landing)
+            + A*_throne_approach (max(0, 12 - min_astar_cost) * 1.5)
+            - sum(enemy_territory_resources + enemy_armies * 1.5)
+  - Two Search Modes:
+      1. DECOMPOSED Mode (no active alliance):
+         Evaluates each opponent independently and combines via military-
+         strength weights:
+           score = w2 * minimax(Me vs H2) + w3 * minimax(Me vs H3)
+      2. PARANOID Mode (any active alliance):
+         Merges opposing houses into a single minimizing coalition that
+         never attacks itself and always chooses the worst reply for Me.
+  - Candidate Filters (`_moves`):
+      * Never attacks own holds or active ally (`my_forbidden`).
+      * Army Sufficiency Restraint: if `armies < MIN_ATTACK_ARMIES (5)`,
+        only considers neutral territories.
+      * Iron Throne Guard: skips `KING'S LANDING` unless
+        `armies >= effective_defense(...)`.
+  - Opening Variety (`_pick`): Randomly breaks ties among attacks within
+    `2.0` points of the optimal score so AI games develop unique borders.
+  - Live Human Preview: `get_move_scores()` powers the tooltip preview
+    (`Minimax: +XX.X · BEST` vs `Hold`) when hovering over adjacent holds.
+
+ALGORITHM 7 — MONTE CARLO TREE SEARCH / UCT (`algorithms/mcts.py`)
+  - Functions:
+      * Context A: `get_diplomacy_decision(...) -> ("propose_alliance"|"betray"|"solo", target)`
+      * Context B: `get_proposal_response(...)  -> "accept" | "reject"`
+  - Parameters: `MCTS_ITER = 500`, `MCTS_ROLLOUT_DEPTH = 10`, `UCT_C = 1.414`.
+  - UCT Selection Formula (with Fuzzy prior bias):
+      UCT = (Q / N) + UCT_C * sqrt(ln(N_parent) / N) + fuzzy_bias[action]
+      * Context A biases: propose_alliance <- alliance, betray <- betrayal,
+        solo <- solo. Partner selection prefers highest trust, breaking ties
+        toward the weaker rival (so two weaker houses unite against the
+        strongest).
+      * Context B biases: accept <- alliance, reject <- max(betrayal, solo).
+  - Rollout Engine (`_Sim` + `_rollout`):
+      * All houses pick moves with `greedy_pick()` (never random moves).
+      * Uses real stochastic combat rolls `Uniform(0.80, 1.20)`, `effective_defense`,
+        `>= 1` army floor, Iron Throne threshold guard, `15G` reserve,
+        `MAX_RECRUITS_PER_TURN = 3`, and supply cap `12 + 6 * holds`.
+      * Alliance Breakdown: after step 0, each turn has breakdown probability
+        `p_break = (1 - trust / 100) * 0.25`; if it breaks, alliance ends
+        and `+10.0` risk penalty is added.
+  - Reward Function (scaled by `REWARD_SCALE = 100.0`):
+      * Captures Iron Throne -> `1000 / 100`
+      * Eliminated           -> `0.0`
+      * Otherwise:
+          0.5 * territory_score + 0.3 * military_strength
+        + 0.2 * resource_score - 0.4 * alliance_risk_penalty
+        (halved if a rival captures the Iron Throne first).
+
+
+=======================================================================
+8. ALGORITHM INTERACTION CHAINS
+=======================================================================
+Chain 1 — Own Diplomacy (Context A):
+  Fuzzy(Context A) -> UCT prior bias -> MCTS(Context A, Greedy rollouts)
+  -> propose_alliance (queue inbox) | betray (break pact + strike) | solo
+
+Chain 2 — Incoming Proposal (Context B):
+  Fuzzy(Context B, 3rd-house threat) -> UCT prior bias -> MCTS(Context B)
+  -> accept (form alliance, switch all houses to PARANOID) | reject
+
+Chain 3 — Military Expansion & Combat:
+  BFS/DFS (reachability & corridors) + A* (throne-corridor cost)
+  -> Minimax (Decomposed or Paranoid, Alpha-Beta) -> target selection
+  -> A* (first border step for multi-hop human clicks) -> Combat resolution
+
+Chain 4 — Elimination Cleanup:
+  Defender reaches 0 holds -> gold looted by capturer
+  -> `purge_eliminated()` dissolves orphaned pact & clears all stale
+     inbox proposals -> remaining 2 houses fight to completion without
+     dead-house proposals or 2-player alliances.
+
+
+=======================================================================
+9. UI, VISUALS, AUDIO & CONTROLS (`renderer.py`, `main.py`)
+=======================================================================
+HUD & Panels:
+  - Top Bar: Live Gold, Armies, Holds for all 3 houses, Turn counter,
+    and active game mode.
+  - Top-Right Pills:
+      * `MUSIC: OFF / ON` (`M` key) — toggles looping background music
+        (`Lament of the War - MP3 Preview.mp3`, disabled by default).
+      * `FUZZY [H]` (`H` key) — collapsible **Fuzzy Diplomacy Intelligence**
+        drawer with clickable `STARK` / `LANNISTER` / `TARGARYEN` tabs,
+        pairwise `ALLIANCE` & `BETRAYAL` scores + exact Fuzzy inputs for
+        each rival, and the general `SOLO WAR` bar at the bottom.
+      * `RAVEN LOG [L]` (`L` key) — chronological event log of every AI
+        algorithm decision, proposal, acceptance, rejection, and betrayal.
+  - Interactive Hover Tooltip: Shows territory garrison, tribute, defense,
+    and (during Human turns) live Minimax score vs. Hold (`BEST` tag).
+
+Animated Armies & Dragons:
+  - House Dragons (all 3 houses patrol their capital & swoop into battles
+    with 6-layer volumetric elemental fire-breathing VFX):
+      * STARK     -> Frost Dragon (8-frame wingbeat sheet, blue-white FROSTFIRE)
+      * LANNISTER -> Golden Dragon (8-frame wingbeat sheet, molten GOLDEN FLAME)
+      * TARGARYEN -> Valyrian Red Dragon (4-direction sheet, crimson DRAGONFIRE)
+  - Ground Squads in Battle:
+      * STARK & LANNISTER attackers -> Medieval Warrior Pack (3 warriors)
+      * TARGARYEN attackers/defenders -> 2 front Medieval Warriors +
+        2 flanking Evil Wizard 2 units (`EVil Wizard 2`)
+      * Opposing / Neutral defenders -> Hero Knight squad (`Hero Knight`)
+
+Audio System (`main.py`):
+  - Battle SFX (always active, never muted by the music button):
+      * Sword Clash (`dragon-studio-sword-fight-393849.mp3`) starts at
+        30% battle progress when ground squads collide.
+      * Dragon Fireball Whoosh (`floraphonic-fireball-whoosh-5-179129.mp3`)
+        ignites at 34% progress when dragonfire erupts.
+      * Both fade out cleanly at 80% progress.
+  - Background Music (`Lament of the War - MP3 Preview.mp3`):
+      * Off by default; toggled via `MUSIC: OFF/ON` button or `M` key.
+      * Automatically ducks smoothly from `0.42` down to `0.12` while
+        sword/dragon SFX play, then swells back up to `0.42` afterward.
+
+Keyboard Shortcuts:
+  - H                 : Toggle Fuzzy Diplomacy drawer
+  - L                 : Toggle Raven's Log drawer
+  - M                 : Toggle background music ON/OFF (SFX stay active)
+  - SPACE/ENTER/RIGHT : Advance turn in AI vs AI mode (or dismiss win modal)
+  - F11               : Toggle fullscreen
+  - ESC               : Return to menu / close modal / exit
+
+
+=======================================================================
+10. VERIFICATION SUITE & PROJECT FILE MAP
+=======================================================================
+Run the automated verification suite at any time:
+    python test_algorithms.py
+
+Verifies all 9 checks in seconds:
+  1. BFS reachability (`get_reachable`)
+  2. DFS simple expansion corridors (`get_expansion_paths`)
+  3. Greedy target selection (`get_greedy_move`)
+  4. A* defense-weighted path & `hex_distance` heuristic (`get_path`)
+  5. Mamdani Fuzzy Logic extreme & Context B profiles (`evaluate_diplomacy`)
+  6. Minimax Decomposed/Paranoid switching, A* corridor costs, and
+     automatic betrayal on ally switching
+  7. MCTS Context A/B decisions and `_Sim` economy/KL/army-floor parity
+  8. Game-logic invariants (`effective_defense`, human ally+move rule,
+     supply cap, BFS/DFS telemetry, eliminated-house diplomacy guard)
+  9. Multi-game headless AI vs AI simulation (winner balance, Iron Throne
+     & elimination wins, house-vs-house battles, zero errors)
+
+Project Files:
+  - main.py                      : Game loop, GameController, audio/ducking
+  - constants.py                 : Grid geometry, palette, economy & AI constants
+  - map.py                       : 19 territories, Voronoi regions, `hex_distance`
+  - house.py                     : House state, economy, territory & inbox API
+  - combat.py                    : `effective_defense` & stochastic casualty model
+  - diplomacy.py                 : Alliances, trust, async inbox, betrayal, purge
+  - renderer.py                  : 2.5D isometric map, dragons/VFX, units, HUD
+  - algorithms/bfs.py            : Breadth-First Search reachability
+  - algorithms/dfs.py            : Depth-First Search expansion paths
+  - algorithms/greedy.py         : Greedy target selector & MCTS rollout policy
+  - algorithms/astar.py          : A* lowest-defense pathfinding
+  - algorithms/fuzzy_diplomacy.py: Mamdani Fuzzy Logic inference system
+  - algorithms/minimax.py        : Decomposed & Paranoid Alpha-Beta Minimax
+  - algorithms/mcts.py           : UCT Monte Carlo Tree Search diplomacy engine
+  - test_algorithms.py           : Automated 9-check verification & demo suite
+
+Known Approximations:
+  1. Decomposed Minimax evaluates rival houses independently using
+     strength-weighted sums, which may underestimate unallied coordination.
+  2. Paranoid Minimax assumes full coalition cooperation while an alliance
+     holds; MCTS models probabilistic alliance breakdown over future turns.
+  3. Minimax evaluates combat using expected roll `1.0` for speed, whereas
+     live combat and MCTS rollouts sample `Uniform(0.80, 1.20)`.

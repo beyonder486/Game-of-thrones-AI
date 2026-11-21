@@ -593,6 +593,42 @@ _DRAGON_SHEETS: dict[str, str] = {
     "left": "assets/ui/reddragonfly3.png",
     "up": "assets/ui/reddragonfly4.png",
 }
+_CUSTOM_DRAGON_PATHS: dict[str, str] = {
+    "STARK": "assets/units/dragon_stark_flap.png",
+    "LANNISTER": "assets/units/dragon_lannister_flap.png",
+}
+_CUSTOM_DRAGON_FRAMES_COUNT = 8
+# Normalized (x, y) mouth anchor inside each 8-frame padded flap cell (right-facing)
+_CUSTOM_DRAGON_MOUTH: dict[str, tuple[float, float]] = {
+    "STARK": (0.800, 0.516),
+    "LANNISTER": (0.742, 0.480),
+}
+_CUSTOM_DRAGON_CACHE: dict[tuple[str, int, int], list[pygame.Surface]] = {}
+
+# House-themed elemental fire-breath palettes: (core, inner, outer, smoke, spark)
+_DRAGON_FIRE_PALETTES: dict[str, tuple[tuple[int, int, int], ...]] = {
+    "STARK": (
+        (238, 253, 255),  # white-hot frost core
+        (110, 224, 255),  # electric ice-cyan flame
+        (34, 118, 238),   # glacial blue outer plume
+        (150, 195, 235),  # icy mist smoke
+        (210, 248, 255),  # frostfire sparks
+    ),
+    "LANNISTER": (
+        (255, 252, 218),  # white-gold blazing core
+        (255, 206, 56),   # molten Lannister gold
+        (232, 74, 22),    # crimson-orange inferno
+        (58, 44, 38),     # scorched smoke
+        (255, 236, 128),  # golden sparks
+    ),
+    "TARGARYEN": (
+        (255, 246, 198),  # white-yellow dragonfire core
+        (255, 146, 32),   # searing orange inner flame
+        (214, 34, 20),    # Valyrian crimson outer plume
+        (46, 36, 36),     # volcanic ash smoke
+        (255, 196, 82),   # glowing embers
+    ),
+}
 
 
 def _dragon_direction(dx: float, dy: float) -> str:
@@ -632,46 +668,336 @@ def _get_dragon_frames(
     return frames
 
 
+def _get_custom_dragon_frames(house: str, max_size: tuple[int, int]) -> list[pygame.Surface]:
+    """Slice and cache the 8-frame wing-flapping sprite sheet for a custom house dragon."""
+    key = (house, max_size[0], max_size[1])
+    if key in _CUSTOM_DRAGON_CACHE:
+        return _CUSTOM_DRAGON_CACHE[key]
+    path = _CUSTOM_DRAGON_PATHS.get(house)
+    if not path:
+        _CUSTOM_DRAGON_CACHE[key] = []
+        return []
+    sheet = get_sprite(path)
+    if sheet is None:
+        _CUSTOM_DRAGON_CACHE[key] = []
+        return []
+    sw_total, sh_total = sheet.get_size()
+    cw = max(1, sw_total // _CUSTOM_DRAGON_FRAMES_COUNT)
+    ch = sh_total
+    # Compensate for the wing-sweep vertical padding so body size matches DRAGON_*_SIZE cleanly
+    box_w = round(max_size[0] * 1.24)
+    box_h = round(max_size[1] * 1.48)
+    scale = min(box_w / cw, box_h / ch)
+    out_w, out_h = max(1, round(cw * scale)), max(1, round(ch * scale))
+    frames: list[pygame.Surface] = []
+    for i in range(_CUSTOM_DRAGON_FRAMES_COUNT):
+        sub = sheet.subsurface(pygame.Rect(i * cw, 0, cw, ch))
+        frames.append(pygame.transform.smoothscale(sub, (out_w, out_h)))
+    _CUSTOM_DRAGON_CACHE[key] = frames
+    return frames
+
+
+def _draw_house_dragon(
+    surface: pygame.Surface,
+    house: str,
+    px: float,
+    py: float,
+    dx: float,
+    dy: float,
+    size: tuple[int, int],
+    time_sec: float,
+    attacking: bool = False,
+    altitude: float = 28.0,
+) -> tuple[float, float]:
+    """Draw any house's flying/roaring dragon with animated wingbeats and shadow.
+
+    Returns the exact screen coordinates `(mouth_x, mouth_y)` of the dragon's jaws.
+    """
+    h_key = house.upper()
+    flap_fps = 13.0 if attacking else 9.0
+    cycle_angle = time_sec * (flap_fps / _CUSTOM_DRAGON_FRAMES_COUNT) * math.tau
+    flap = -math.cos(cycle_angle)
+
+    # Dynamic ground contact shadow shrinking slightly as the dragon lifts on downstroke
+    sh_w = max(24, round(size[0] * (0.44 - 0.05 * flap)))
+    sh_h = max(10, round(size[1] * 0.18))
+    shadow = pygame.Surface((sh_w, sh_h), pygame.SRCALPHA)
+    pygame.draw.ellipse(shadow, (8, 12, 16, 110 if attacking else 96), (0, 0, sh_w, sh_h))
+    surface.blit(shadow, (round(px - sh_w / 2), round(py + 6)))
+
+    if h_key == "TARGARYEN":
+        direction = _dragon_direction(dx, dy)
+        frames = _get_dragon_frames(direction, "attack" if attacking else "fly", size)
+        if not frames:
+            return (px, py - altitude)
+        fps = 8.0 if attacking else 7.4
+        frame = frames[int(time_sec * fps) % len(frames)]
+        bob = -flap * 3.0
+        draw_x = round(px - frame.get_width() / 2)
+        draw_y = round(py - altitude + bob - frame.get_height() / 2)
+        surface.blit(frame, (draw_x, draw_y))
+        ln = math.hypot(dx, dy) or 1.0
+        mx = px + (dx / ln) * (frame.get_width() * 0.28)
+        my = py - altitude + bob + (dy / ln) * (frame.get_height() * 0.16) - 2
+        return (mx, my)
+
+    # Custom Frost Dragon (STARK) & Golden Dragon (LANNISTER) 8-frame wing-flapping cycle
+    frames = _get_custom_dragon_frames(h_key, size)
+    if not frames:
+        return (px, py - altitude)
+
+    frame_idx = int(time_sec * flap_fps) % len(frames)
+    spr = frames[frame_idx]
+    flip_left = dx < 0
+    if flip_left:
+        spr = pygame.transform.flip(spr, True, False)
+
+    # Slight rear-up pitch while breathing fire
+    tilt = 5.0 if attacking else 0.0
+    if flip_left:
+        tilt = -tilt
+    final_spr = pygame.transform.rotate(spr, tilt) if tilt else spr
+
+    draw_cx = px
+    draw_cy = py - altitude
+    surface.blit(final_spr, (round(draw_cx - final_spr.get_width() / 2), round(draw_cy - final_spr.get_height() / 2)))
+
+    # Compute exact open-mouth anchor in screen coordinates (including body bob baked in frame)
+    fw, fh = spr.get_size()
+    m_nx, m_ny = _CUSTOM_DRAGON_MOUTH.get(h_key, (0.78, 0.50))
+    if flip_left:
+        m_nx = 1.0 - m_nx
+    body_bob_px = -flap * (fh * 0.025)
+    mouth_x = draw_cx + (m_nx - 0.5) * fw
+    mouth_y = draw_cy + (m_ny - 0.5) * fh + body_bob_px
+    return (mouth_x, mouth_y)
+
+
+def _draw_dragon_breath(
+    surface: pygame.Surface,
+    house: str,
+    mouth: tuple[float, float],
+    target: tuple[float, float],
+    time_sec: float,
+    reach: float = 1.0,
+    intensity: float = 1.0,
+    show_ground_blaze: bool = True,
+) -> None:
+    """Render a cinematic 6-layer volumetric dragonfire torrent from mouth to target."""
+    reach = max(0.05, min(1.0, reach))
+    intensity = max(0.0, min(1.0, intensity))
+    if intensity <= 0.02:
+        return
+
+    core_col, inner_col, outer_col, smoke_col, spark_col = _DRAGON_FIRE_PALETTES.get(
+        house.upper(), _DRAGON_FIRE_PALETTES["TARGARYEN"]
+    )
+    mx, my = mouth
+    tx = mx + (target[0] - mx) * reach
+    ty = my + (target[1] - my) * reach
+    dx, dy = tx - mx, ty - my
+    dist = math.hypot(dx, dy)
+    if dist < 6.0:
+        return
+    ux, uy = dx / dist, dy / dist
+    px_perp, py_perp = -uy, ux  # perpendicular unit vector for flame cone width
+
+    # Local alpha canvas around the flame bounding box for smooth additive-style layering
+    pad = 64
+    min_x = int(min(mx, tx)) - pad
+    min_y = int(min(my, ty)) - pad
+    w = max(4, int(max(mx, tx)) - min_x + pad)
+    h = max(4, int(max(my, ty)) - min_y + pad)
+    fx = pygame.Surface((w, h), pygame.SRCALPHA)
+    lmx, lmy = mx - min_x, my - min_y
+    ltx, lty = tx - min_x, ty - min_y
+
+    # Layer 1: Dark smoke / icy mist billows rising near the impact end
+    for i in range(8):
+        p = (time_sec * 1.65 + i / 8.0) % 1.0
+        if p < 0.35:
+            continue
+        sp = (p - 0.35) / 0.65
+        swirl = math.sin(time_sec * 7.0 + i * 2.3) * (10.0 * sp)
+        sx = lmx + dx * (0.45 + 0.65 * sp) + px_perp * swirl
+        sy = lmy + dy * (0.45 + 0.65 * sp) + py_perp * swirl - sp * 18.0
+        sr = max(4, round((8 + 14 * sp) * intensity))
+        sa = int(95 * (1.0 - sp) * intensity)
+        pygame.draw.circle(fx, (*smoke_col, sa), (round(sx), round(sy)), sr)
+
+    # Layer 2: 3-tier turbulent volumetric flame cone (outer → inner → white-hot core)
+    segments = 9
+    tiers = (
+        (outer_col, 1.00, 145, 22.0, 1.00),
+        (inner_col, 0.88, 200, 14.5, 0.92),
+        (core_col, 0.68, 235, 7.2, 0.80),
+    )
+    for col, length_frac, base_alpha, max_half_w, wave_amp in tiers:
+        left_edge: list[tuple[float, float]] = []
+        right_edge: list[tuple[float, float]] = []
+        for s in range(segments + 1):
+            frac = (s / segments) * length_frac
+            cx = lmx + dx * frac
+            cy = lmy + dy * frac
+            # Expand cone smoothly from narrow jaws to roaring fan, then taper slightly at tip
+            taper = math.sin(min(1.0, frac / max(0.01, length_frac)) * math.pi * 0.78)
+            half_w = (2.5 + max_half_w * taper) * (0.55 + 0.45 * intensity)
+            wobble = math.sin(time_sec * 18.0 - s * 1.15) * (4.2 * frac * wave_amp)
+            flicker = math.cos(time_sec * 23.0 + s * 1.7) * (2.4 * frac)
+            left_edge.append((cx + px_perp * (half_w + wobble), cy + py_perp * (half_w + wobble)))
+            right_edge.append((cx - px_perp * (half_w - wobble - flicker), cy - py_perp * (half_w - wobble - flicker)))
+        poly = left_edge + list(reversed(right_edge))
+        pygame.draw.polygon(fx, (*col, int(base_alpha * intensity)), poly)
+
+    # Layer 3: 16 billowing high-velocity fireballs rushing down the cone
+    for i in range(16):
+        p = (time_sec * 2.85 + i / 16.0) % 1.0
+        jitter = math.sin(i * 3.1 + time_sec * 14.0) * (11.0 * p)
+        bx = lmx + dx * p + px_perp * jitter
+        by = lmy + dy * p + py_perp * jitter - p * 4.0
+        br = max(3, round((4.5 + 11.5 * p) * (0.65 + 0.35 * intensity)))
+        if p < 0.28:
+            bcol = core_col
+            ba = int(225 * intensity)
+        elif p < 0.68:
+            bcol = inner_col
+            ba = int(190 * (1.0 - p * 0.25) * intensity)
+        else:
+            bcol = outer_col
+            ba = int(165 * (1.0 - (p - 0.68) / 0.38) * intensity)
+        pygame.draw.circle(fx, (*bcol, max(0, min(255, ba))), (round(bx), round(by)), br)
+
+    # Layer 4: Roaring mouth ignition flash right inside the dragon's jaws
+    pulse = 0.85 + 0.15 * math.sin(time_sec * 28.0)
+    pygame.draw.circle(fx, (*outer_col, int(115 * intensity)), (round(lmx), round(lmy)), round(14 * pulse * intensity))
+    pygame.draw.circle(fx, (*inner_col, int(185 * intensity)), (round(lmx), round(lmy)), round(9 * pulse * intensity))
+    pygame.draw.circle(fx, (*core_col, int(245 * intensity)), (round(lmx), round(lmy)), round(5 * pulse * intensity))
+
+    # Layer 5: Target engulfment ground blaze & licking flame tongues
+    if show_ground_blaze and reach > 0.72:
+        blaze_s = intensity * min(1.0, (reach - 0.72) / 0.28)
+        bw = round(48 * blaze_s)
+        bh = round(22 * blaze_s)
+        if bw > 4 and bh > 4:
+            pygame.draw.ellipse(
+                fx,
+                (*outer_col, int(130 * blaze_s)),
+                (round(ltx - bw / 2), round(lty - bh / 2 + 4), bw, bh),
+            )
+            pygame.draw.ellipse(
+                fx,
+                (*inner_col, int(165 * blaze_s)),
+                (round(ltx - bw * 0.34), round(lty - bh * 0.34 + 4), round(bw * 0.68), round(bh * 0.68)),
+            )
+        # Dancing vertical flame tongues engulfing the defending squad
+        for j in range(7):
+            off_x = (j - 3) * 7.5 + math.sin(time_sec * 15.0 + j * 1.9) * 3.0
+            fh = (14.0 + 12.0 * abs(math.sin(time_sec * 16.0 + j * 1.4))) * blaze_s
+            fw = 5.5 * blaze_s
+            base_x = ltx + off_x
+            base_y = lty + 5.0
+            tip_x = base_x + math.sin(time_sec * 19.0 + j * 2.1) * 4.5
+            tip_y = base_y - fh
+            tcol = inner_col if j % 2 == 0 else outer_col
+            pygame.draw.polygon(
+                fx,
+                (*tcol, int(195 * blaze_s)),
+                [(base_x - fw, base_y), (tip_x, tip_y), (base_x + fw, base_y)],
+            )
+            pygame.draw.polygon(
+                fx,
+                (*core_col, int(205 * blaze_s)),
+                [(base_x - fw * 0.45, base_y), (tip_x, base_y - fh * 0.55), (base_x + fw * 0.45, base_y)],
+            )
+
+    # Layer 6: 20 high-velocity streaking sparks & embers curling upward
+    for i in range(20):
+        ep = (time_sec * 3.4 + i * 0.13) % 1.0
+        spread = math.sin(i * 4.7 + time_sec * 9.0) * (18.0 * ep + 3.0)
+        lift = -ep * ep * 20.0
+        ex = lmx + dx * (ep * 1.15) + px_perp * spread
+        ey = lmy + dy * (ep * 1.15) + py_perp * spread + lift
+        tail_x = ex - ux * 7.5
+        tail_y = ey - uy * 7.5 + 2.0
+        ea = int(235 * (1.0 - ep) * intensity)
+        pygame.draw.line(fx, (*spark_col, ea), (round(tail_x), round(tail_y)), (round(ex), round(ey)), 2)
+        pygame.draw.circle(fx, (*core_col, ea), (round(ex), round(ey)), max(1, round(2.5 * (1.0 - ep * 0.6))))
+
+    surface.blit(fx, (min_x, min_y))
+
+
 def _draw_patrol_dragon(
     surface: pygame.Surface,
     game_map: Map | None,
     houses: list[House] | None,
     animations: list[dict[str, object]] | None,
 ) -> None:
-    """Render an ambient flying Targaryen dragon circling Dragonstone/capital."""
-    if animations and any(
-        a.get("type") == "march" and a.get("house") == "TARGARYEN" for a in animations
-    ):
-        return
-    if houses:
-        targ = next((h for h in houses if h.name == "TARGARYEN"), None)
-        if targ is not None and targ.is_eliminated():
-            return
-        anchor = targ.territories[0] if targ and targ.territories else None
-    else:
-        anchor = None
-    if anchor is None and game_map is not None:
-        owned = game_map.get_owned_by("TARGARYEN")
-        anchor = owned[0] if owned else None
-    col, row = (anchor.col, anchor.row) if anchor is not None else DRAGONSTONE_COORD
-    cx, cy = center_of(col, row)
+    """Render ambient flying dragons circling each surviving house's capital, with periodic fire bursts."""
+    marching_houses = {
+        str(a.get("house", "")).upper()
+        for a in (animations or [])
+        if a.get("type") == "march"
+    }
+    ticks_sec = pygame.time.get_ticks() * 0.001
+    house_by_name = {h.name: h for h in houses} if houses else {}
+    default_coords = {
+        "STARK": (5, 2),
+        "LANNISTER": (2, 6),
+        "TARGARYEN": DRAGONSTONE_COORD,
+    }
 
-    theta = pygame.time.get_ticks() * 0.00055
-    rx, ry = 36.0, 20.0
-    px = cx + math.cos(theta) * rx
-    py = cy + math.sin(theta) * ry
-    dx = -math.sin(theta) * rx
-    dy = math.cos(theta) * ry
-    direction = _dragon_direction(dx, dy)
-    frames = _get_dragon_frames(direction, "fly", DRAGON_PATROL_SIZE)
-    if not frames:
-        return
-    frame = frames[(pygame.time.get_ticks() // 135) % len(frames)]
+    for idx, h_name in enumerate(("STARK", "LANNISTER", "TARGARYEN")):
+        if h_name in marching_houses:
+            continue
+        h_obj = house_by_name.get(h_name)
+        if h_obj is not None and h_obj.is_eliminated():
+            continue
+        anchor = h_obj.territories[0] if (h_obj is not None and h_obj.territories) else None
+        if anchor is None and game_map is not None:
+            owned = game_map.get_owned_by(h_name)
+            anchor = owned[0] if owned else None
+        col, row = (anchor.col, anchor.row) if anchor is not None else default_coords[h_name]
+        cx, cy = center_of(col, row)
 
-    shadow = pygame.Surface((42, 16), pygame.SRCALPHA)
-    pygame.draw.ellipse(shadow, (8, 12, 16, 105), (0, 0, 42, 16))
-    surface.blit(shadow, (round(px - 21), round(py + 6)))
-    surface.blit(frame, (round(px - frame.get_width() / 2), round(py - 28 - frame.get_height() / 2)))
+        phase = idx * 2.1
+        theta = ticks_sec * 0.55 + phase
+        rx, ry = 40.0, 22.0
+        px = cx + math.cos(theta) * rx
+        py = cy + math.sin(theta) * ry
+        dx = -math.sin(theta) * rx
+        dy = math.cos(theta) * ry
+
+        # Periodic 1.3s ambient fire-breath display every 6.5s (staggered per house)
+        cycle_t = (ticks_sec + idx * 2.2) % 6.5
+        breathing = cycle_t < 1.3
+        mouth = _draw_house_dragon(
+            surface,
+            h_name,
+            px,
+            py,
+            dx,
+            dy,
+            DRAGON_PATROL_SIZE,
+            ticks_sec + phase,
+            attacking=breathing,
+            altitude=30.0,
+        )
+        if breathing:
+            ln = math.hypot(dx, dy) or 1.0
+            aim_x = mouth[0] + (dx / ln) * 62.0
+            aim_y = mouth[1] + (dy / ln) * 32.0 + 18.0
+            reach = min(1.0, cycle_t / 0.25)
+            fade = min(1.0, (1.3 - cycle_t) / 0.30)
+            _draw_dragon_breath(
+                surface,
+                h_name,
+                mouth,
+                (aim_x, aim_y),
+                ticks_sec + phase,
+                reach=reach,
+                intensity=0.88 * fade,
+                show_ground_blaze=False,
+            )
 
 
 def _draw_sailing_ships(surface: pygame.Surface, rect: pygame.Rect) -> None:
@@ -724,7 +1050,7 @@ def _draw_sailing_ships(surface: pygame.Surface, rect: pygame.Rect) -> None:
         pygame.draw.polygon(surface, (42, 34, 28), sail, 1)
 
 
-_WARRIOR_FRAME_CACHE: dict[tuple[str, tuple[int, int]], list[pygame.Surface]] = {}
+_WARRIOR_FRAME_CACHE: dict[tuple[str, str, tuple[int, int]], list[pygame.Surface]] = {}
 _WARRIOR_SHEETS: dict[str, str] = {
     "run": "assets/ui/Medieval Warrior Pack/Run.png",
     "attack1": "assets/ui/Medieval Warrior Pack/Attack1.png",
@@ -733,31 +1059,80 @@ _WARRIOR_SHEETS: dict[str, str] = {
     "hit": "assets/ui/Medieval Warrior Pack/Hit.png",
     "death": "assets/ui/Medieval Warrior Pack/Death.png",
 }
+_WIZARD_SHEETS: dict[str, str] = {
+    "run": "assets/ui/EVil Wizard 2/Sprites/Run.png",
+    "attack1": "assets/ui/EVil Wizard 2/Sprites/Attack1.png",
+    "attack2": "assets/ui/EVil Wizard 2/Sprites/Attack2.png",
+    "idle": "assets/ui/EVil Wizard 2/Sprites/Idle.png",
+    "hit": "assets/ui/EVil Wizard 2/Sprites/Take hit.png",
+    "death": "assets/ui/EVil Wizard 2/Sprites/Death.png",
+}
+_HERO_KNIGHT_DIRS: dict[str, str] = {
+    "run": "assets/ui/Hero Knight/Sprites/HeroKnight/Run",
+    "attack1": "assets/ui/Hero Knight/Sprites/HeroKnight/Attack1",
+    "attack2": "assets/ui/Hero Knight/Sprites/HeroKnight/Attack2",
+    "idle": "assets/ui/Hero Knight/Sprites/HeroKnight/Idle",
+    "hit": "assets/ui/Hero Knight/Sprites/HeroKnight/Hurt",
+    "death": "assets/ui/Hero Knight/Sprites/HeroKnight/Death",
+}
 
 
 def _get_warrior_frames(
     kind: str = "run",
     size: tuple[int, int] = (54, 54),
+    style: str = "warrior",
 ) -> list[pygame.Surface]:
-    """Slice and cache Medieval Warrior Pack horizontal sprite-sheet frames (184x137 cells)."""
-    key = (kind, size)
+    """Load and cache animated ground-unit frames for 'warrior', 'wizard', or 'hero_knight'."""
+    key = (style, kind, size)
     if key in _WARRIOR_FRAME_CACHE:
         return _WARRIOR_FRAME_CACHE[key]
-    path = _WARRIOR_SHEETS.get(kind, _WARRIOR_SHEETS["run"])
-    sheet = get_sprite(path)
-    if sheet is None:
-        _WARRIOR_FRAME_CACHE[key] = []
-        return []
-    cell_w = 184
-    cell_h = sheet.get_height()
-    count = max(1, sheet.get_width() // cell_w)
-    # Consistent crop inside each 184x137 cell so feet stay pixel-locked across all actions
-    crop_x, crop_y = 38, 22
-    crop_w, crop_h = min(108, cell_w - crop_x), min(108, cell_h - crop_y)
+
     frames: list[pygame.Surface] = []
-    for i in range(count):
-        sub = sheet.subsurface(pygame.Rect(i * cell_w + crop_x, crop_y, crop_w, crop_h))
-        frames.append(pygame.transform.smoothscale(sub, size))
+    if style == "wizard":
+        path = _WIZARD_SHEETS.get(kind, _WIZARD_SHEETS["run"])
+        sheet = get_sprite(path)
+        if sheet is not None:
+            cell_w = sheet.get_height()  # 250x250 square cells
+            cell_h = sheet.get_height()
+            count = max(1, sheet.get_width() // max(1, cell_w))
+            # Feet locked at y=167 inside 250x250 cell; keep generous width for staff/fire swings
+            crop_x, crop_y = 44, 48
+            crop_w = min(162, cell_w - crop_x)
+            crop_h = min(124, cell_h - crop_y)
+            target_h = round(size[1] * 1.18)
+            target_w = round(target_h * (crop_w / crop_h))
+            for i in range(count):
+                sub = sheet.subsurface(pygame.Rect(i * cell_w + crop_x, crop_y, crop_w, crop_h))
+                frames.append(pygame.transform.smoothscale(sub, (target_w, target_h)))
+    elif style == "hero_knight":
+        folder = _HERO_KNIGHT_DIRS.get(kind, _HERO_KNIGHT_DIRS["run"])
+        abs_folder = os.path.join(os.path.dirname(os.path.abspath(__file__)), folder)
+        if os.path.isdir(abs_folder):
+            pngs = sorted(
+                (f for f in os.listdir(abs_folder) if f.lower().endswith(".png")),
+                key=lambda fn: int(fn.rsplit("_", 1)[-1].split(".")[0]) if "_" in fn and fn.rsplit("_", 1)[-1].split(".")[0].isdigit() else fn,
+            )
+            # 100x55 frames with feet locked at y=53; preserve aspect ratio cleanly
+            target_h = round(size[1] * 0.88)
+            target_w = round(target_h * (100.0 / 55.0))
+            for fn in pngs:
+                spr = get_sprite(f"{folder}/{fn}")
+                if spr is not None:
+                    frames.append(pygame.transform.smoothscale(spr, (target_w, target_h)))
+    else:
+        path = _WARRIOR_SHEETS.get(kind, _WARRIOR_SHEETS["run"])
+        sheet = get_sprite(path)
+        if sheet is not None:
+            cell_w = 184
+            cell_h = sheet.get_height()
+            count = max(1, sheet.get_width() // cell_w)
+            # Consistent crop inside each 184x137 cell so feet stay pixel-locked across all actions
+            crop_x, crop_y = 38, 22
+            crop_w, crop_h = min(108, cell_w - crop_x), min(108, cell_h - crop_y)
+            for i in range(count):
+                sub = sheet.subsurface(pygame.Rect(i * cell_w + crop_x, crop_y, crop_w, crop_h))
+                frames.append(pygame.transform.smoothscale(sub, size))
+
     _WARRIOR_FRAME_CACHE[key] = frames
     return frames
 
@@ -767,13 +1142,14 @@ def _draw_road_patrols(
     game_map: Map | None,
     houses: list[House] | None,
 ) -> None:
-    """Render animated running Medieval Warriors patrolling between owned holds."""
+    """Render animated running ground troops patrolling between owned holds (Evil Wizard 2 for Targaryen)."""
     if game_map is None or not houses:
         return
     ticks_ms = pygame.time.get_ticks()
     ticks = ticks_ms * 0.00032
-    run_frames = _get_warrior_frames("run", (48, 48))
-    fallback = get_sprite("assets/units/knights.png", (34, 38)) if not run_frames else None
+    warrior_run = _get_warrior_frames("run", (48, 48), style="warrior")
+    wizard_run = _get_warrior_frames("run", (48, 48), style="wizard")
+    fallback = get_sprite("assets/units/knights.png", (34, 38)) if not warrior_run else None
     for idx, house in enumerate(houses):
         if house.is_eliminated() or not house.territories:
             continue
@@ -802,6 +1178,7 @@ def _draw_road_patrols(
         pygame.draw.ellipse(foot_surf, (*accent, 195), (4, 3, 24, 8), 2)
         surface.blit(foot_surf, (round(px - 16), round(py - 5)))
 
+        run_frames = wizard_run if (house.name == "TARGARYEN" and wizard_run) else warrior_run
         if run_frames:
             frame = run_frames[(ticks_ms // 85 + idx * 2) % len(run_frames)]
             spr = pygame.transform.flip(frame, True, False) if dx < 0 else frame
@@ -913,15 +1290,67 @@ def _draw_animations(
             att_flip = dx < 0
             def_flip = not att_flip
 
-            run_frames = _get_warrior_frames("run", (62, 62))
-            idle_frames = _get_warrior_frames("idle", (62, 62))
-            atk1_frames = _get_warrior_frames("attack1", (66, 66))
-            atk2_frames = _get_warrior_frames("attack2", (66, 66))
-            hit_frames = _get_warrior_frames("hit", (62, 62))
-            death_frames = _get_warrior_frames("death", (62, 62))
+            att_is_targ = house == "TARGARYEN"
+            def_is_targ = defender_name == "TARGARYEN"
 
-            att_slots = ((-10, -14, 0), (0, 0, 2), (-8, 14, 4))
-            def_slots = ((10, -14, 1), (0, 0, 3), (8, 14, 5))
+            w_run = _get_warrior_frames("run", (62, 62), style="warrior")
+            w_idle = _get_warrior_frames("idle", (62, 62), style="warrior")
+            w_atk1 = _get_warrior_frames("attack1", (66, 66), style="warrior")
+            w_atk2 = _get_warrior_frames("attack2", (66, 66), style="warrior")
+            w_hit = _get_warrior_frames("hit", (62, 62), style="warrior")
+            w_death = _get_warrior_frames("death", (62, 62), style="warrior")
+
+            wiz_run = _get_warrior_frames("run", (66, 66), style="wizard")
+            wiz_idle = _get_warrior_frames("idle", (66, 66), style="wizard")
+            wiz_atk1 = _get_warrior_frames("attack1", (70, 70), style="wizard")
+            wiz_atk2 = _get_warrior_frames("attack2", (70, 70), style="wizard")
+            wiz_hit = _get_warrior_frames("hit", (66, 66), style="wizard")
+            wiz_death = _get_warrior_frames("death", (66, 66), style="wizard")
+
+            hk_run = _get_warrior_frames("run", (62, 62), style="hero_knight")
+            hk_idle = _get_warrior_frames("idle", (62, 62), style="hero_knight")
+            hk_atk1 = _get_warrior_frames("attack1", (66, 66), style="hero_knight")
+            hk_atk2 = _get_warrior_frames("attack2", (66, 66), style="hero_knight")
+            hk_hit = _get_warrior_frames("hit", (62, 62), style="hero_knight")
+            hk_death = _get_warrior_frames("death", (62, 62), style="hero_knight")
+
+            # (fx, fy, frame_offset, unit_kind) — Targaryen fields 2 front Warriors + 2 flanking Evil Wizards
+            back_x = round(-ux * 24)
+            fwd_x = round(ux * 6)
+            if att_is_targ:
+                att_slots: tuple[tuple[int, int, int, str], ...] = (
+                    (back_x, -26, 0, "wizard"),
+                    (fwd_x, -10, 2, "warrior"),
+                    (fwd_x, 12, 4, "warrior"),
+                    (back_x, 30, 6, "wizard"),
+                )
+            else:
+                att_slots = (
+                    (-10, -14, 0, "warrior"),
+                    (0, 0, 2, "warrior"),
+                    (-8, 14, 4, "warrior"),
+                )
+
+            if def_is_targ:
+                def_slots: tuple[tuple[int, int, int, str], ...] = (
+                    (-back_x, -26, 1, "wizard"),
+                    (-fwd_x, -10, 3, "warrior"),
+                    (-fwd_x, 12, 5, "warrior"),
+                    (-back_x, 30, 7, "wizard"),
+                )
+            else:
+                def_slots = (
+                    (10, -14, 1, "hero_knight"),
+                    (0, 0, 3, "hero_knight"),
+                    (8, 14, 5, "hero_knight"),
+                )
+
+            def _unit_pack(kind: str) -> tuple[list[pygame.Surface], ...]:
+                if kind == "wizard":
+                    return (wiz_run, wiz_idle, wiz_atk1, wiz_atk2, wiz_hit, wiz_death)
+                if kind == "hero_knight":
+                    return (hk_run, hk_idle, hk_atk1, hk_atk2, hk_hit, hk_death)
+                return (w_run, w_idle, w_atk1, w_atk2, w_hit, w_death)
 
             # Subtle pulsing battlefield glow between the two castles
             if 0.25 <= t <= 0.90:
@@ -940,76 +1369,97 @@ def _draw_animations(
                 dpx = bx + (def_meet_x - bx) * ease
                 dpy = by + (def_meet_y - by) * ease
 
-                # Defending castle's warriors running out to meet the invasion
-                for fx, fy, foff in def_slots:
+                # Dragon flies high overhead so ground troops stay clearly visible
+                arc = math.sin(mt * math.pi) * 16.0
+                _draw_house_dragon(
+                    surface,
+                    house,
+                    apx - ux * 36.0,
+                    apy - uy * 18.0,
+                    dx,
+                    dy,
+                    DRAGON_BATTLE_SIZE,
+                    elapsed,
+                    attacking=False,
+                    altitude=66.0 + arc,
+                )
+
+                # Opposing defending warriors
+                for fx, fy, foff, ukind in def_slots:
+                    u_run = _unit_pack(ukind)[0]
                     _draw_warrior_unit(
-                        surface, dpx + fx, dpy + fy, run_frames, int(elapsed * 11) + foff, def_flip, def_color
+                        surface, dpx + fx, dpy + fy, u_run, int(elapsed * 11) + foff, def_flip, def_color
                     )
 
-                # Attacking house (Targaryen dragon OR Stark/Lannister warrior squad)
-                if house == "TARGARYEN":
-                    frames = _get_dragon_frames(_dragon_direction(dx, dy), "fly", DRAGON_BATTLE_SIZE)
-                    if frames:
-                        frame = frames[int(elapsed * 8) % len(frames)]
-                        shadow = pygame.Surface((48, 18), pygame.SRCALPHA)
-                        pygame.draw.ellipse(shadow, (8, 12, 16, 120), (0, 0, 48, 18))
-                        surface.blit(shadow, (round(apx - 24), round(apy + 6)))
-                        arc = math.sin(mt * math.pi) * 14
-                        surface.blit(frame, (round(apx - frame.get_width() / 2), round(apy - 28 - arc - frame.get_height() / 2)))
-                else:
-                    for fx, fy, foff in att_slots:
-                        _draw_warrior_unit(
-                            surface, apx + fx, apy + fy, run_frames, int(elapsed * 11) + foff, att_flip, accent
-                        )
+                # Attacking ground vanguard (2 Wizards + 2 Warriors for Targaryen, 3 Warriors for Stark/Lannister)
+                for fx, fy, foff, ukind in att_slots:
+                    u_run = _unit_pack(ukind)[0]
+                    _draw_warrior_unit(
+                        surface, apx + fx, apy + fy, u_run, int(elapsed * 11) + foff, att_flip, accent
+                    )
 
             elif t < 0.78:
-                # Phase 2: Extended face-to-face sword fight / dragonfire clash!
+                # Phase 2: Extended face-to-face clash & roaring dragonfire barrage!
                 ct = (t - 0.34) / 0.44
                 clash_cycle = int(elapsed * 3.5)
 
-                # Defenders fighting back (alternating sword swings & taking hits)
-                for idx_w, (fx, fy, foff) in enumerate(def_slots):
+                # Opposing defenders fighting back
+                for idx_w, (fx, fy, foff, ukind) in enumerate(def_slots):
+                    _, _, u_atk1, u_atk2, u_hit, _ = _unit_pack(ukind)
                     taking_hit = ((clash_cycle + idx_w) % 3 == 0)
-                    if taking_hit and hit_frames:
-                        fset = hit_frames
+                    if taking_hit and u_hit:
+                        fset = u_hit
                         fidx = int(elapsed * 9 + foff) % len(fset)
                     else:
-                        fset = atk1_frames if (idx_w % 2 == 0) else atk2_frames
+                        fset = u_atk1 if (idx_w % 2 == 0) else u_atk2
                         fidx = int(elapsed * 9 + foff) % max(1, len(fset))
                     lunge = (-4 if def_flip else 4) * math.sin(elapsed * 12 + idx_w)
                     _draw_warrior_unit(
                         surface, def_meet_x + fx + lunge, def_meet_y + fy, fset, fidx, def_flip, def_color
                     )
 
-                if house == "TARGARYEN":
-                    frames = _get_dragon_frames(_dragon_direction(dx, dy), "attack", DRAGON_BATTLE_SIZE)
-                    if frames:
-                        frame = frames[int(elapsed * 7) % len(frames)]
-                        shadow = pygame.Surface((48, 18), pygame.SRCALPHA)
-                        pygame.draw.ellipse(shadow, (8, 12, 16, 120), (0, 0, 48, 18))
-                        surface.blit(shadow, (round(att_meet_x - 24), round(att_meet_y + 8)))
-                        surface.blit(frame, (round(att_meet_x - frame.get_width() / 2), round(att_meet_y - 26 - frame.get_height() / 2)))
-                    # Streaming dragonfire & embers onto defending warriors
-                    for i in range(10):
-                        p = (elapsed * 2.4 + i * 0.1) % 1.0
-                        ex = round(att_meet_x + (def_meet_x - att_meet_x) * p + math.sin(i * 2.1 + elapsed * 9) * 8)
-                        ey = round(att_meet_y - 18 + (def_meet_y - att_meet_y + 12) * p + math.cos(i * 1.7 + elapsed * 9) * 6)
-                        col = (255, 205, 76) if i % 2 == 0 else (242, 86, 34)
-                        pygame.draw.circle(surface, col, (ex, ey), max(2, round(6 * (1.0 - p * 0.5))))
-                else:
-                    # Attacking warriors trading sword swings & hits face-to-face
-                    for idx_w, (fx, fy, foff) in enumerate(att_slots):
-                        taking_hit = ((clash_cycle + idx_w + 1) % 3 == 0)
-                        if taking_hit and hit_frames:
-                            fset = hit_frames
-                            fidx = int(elapsed * 9 + foff) % len(fset)
-                        else:
-                            fset = atk1_frames if (idx_w % 2 == 0) else atk2_frames
-                            fidx = int(elapsed * 9 + foff) % max(1, len(fset))
-                        lunge = (-4 if att_flip else 4) * math.sin(elapsed * 12 + idx_w + 1.5)
-                        _draw_warrior_unit(
-                            surface, att_meet_x + fx + lunge, att_meet_y + fy, fset, fidx, att_flip, accent
-                        )
+                # Attacking ground squad fighting clearly in the foreground (never hidden by dragon)
+                for idx_w, (fx, fy, foff, ukind) in enumerate(att_slots):
+                    _, _, u_atk1, u_atk2, u_hit, _ = _unit_pack(ukind)
+                    taking_hit = ((clash_cycle + idx_w + 1) % 3 == 0)
+                    if taking_hit and u_hit:
+                        fset = u_hit
+                        fidx = int(elapsed * 9 + foff) % len(fset)
+                    else:
+                        fset = u_atk1 if (idx_w % 2 == 0) else u_atk2
+                        fidx = int(elapsed * 9 + foff) % max(1, len(fset))
+                    lunge = (-4 if att_flip else 4) * math.sin(elapsed * 12 + idx_w + 1.5)
+                    _draw_warrior_unit(
+                        surface, att_meet_x + fx + lunge, att_meet_y + fy, fset, fidx, att_flip, accent
+                    )
+
+                # Dragon hovers high above & slightly behind the squad, breathing fire downward onto defenders
+                dragon_x = att_meet_x - ux * 46.0
+                dragon_y = att_meet_y - uy * 24.0
+                mouth = _draw_house_dragon(
+                    surface,
+                    house,
+                    dragon_x,
+                    dragon_y,
+                    def_meet_x - dragon_x,
+                    def_meet_y - dragon_y,
+                    DRAGON_BATTLE_SIZE,
+                    elapsed,
+                    attacking=True,
+                    altitude=74.0,
+                )
+                breath_reach = min(1.0, ct * 4.2)
+                breath_fade = min(1.0, (1.0 - ct) * 5.0)
+                _draw_dragon_breath(
+                    surface,
+                    house,
+                    mouth,
+                    (def_meet_x + ux * 14.0, def_meet_y + 4.0),
+                    elapsed,
+                    reach=breath_reach,
+                    intensity=max(0.25, breath_fade),
+                    show_ground_blaze=True,
+                )
 
                 # Live steel clash sparks flying between the two squads
                 for i in range(7):
@@ -1020,49 +1470,66 @@ def _draw_animations(
                     sy = round(mid_y - 12 + math.sin(ang) * rad * 0.6)
                     pygame.draw.circle(surface, GOLD if i % 2 == 0 else IVORY, (sx, sy), max(1, round(3.5 * (1.0 - sp_p))))
 
-                # Battle progress label above the clash
-                clash_lbl = "CLASHING!"
-                write(surface, clash_lbl, (round(mid_x - fonts["micro"].size(clash_lbl)[0] / 2), round(mid_y - 54)), fonts["micro"], GOLD)
+                # Battle progress label clearly above the elevated dragon's wings
+                clash_lbl = "DRAGONFIRE!" if house == "TARGARYEN" else ("FROSTFIRE!" if house == "STARK" else "GOLDEN FLAME!")
+                write(surface, clash_lbl, (round(mid_x - fonts["micro"].size(clash_lbl)[0] / 2), round(mid_y - 116)), fonts["micro"], GOLD)
 
             else:
-                # Phase 3: Defeated warriors fall (Death.png), victors hold the field
+                # Phase 3: Defeated warriors fall, victors hold the field
                 it = (t - 0.78) / 0.22
-                death_idx = min(max(0, len(death_frames) - 1), int(it * len(death_frames)))
 
                 if captured:
-                    # Defenders collapse; attackers stand victorious
-                    for fx, fy, _ in def_slots:
+                    # Defenders collapse; attackers & victorious dragon claim the castle
+                    for fx, fy, _, ukind in def_slots:
+                        u_death = _unit_pack(ukind)[5]
+                        d_idx = min(max(0, len(u_death) - 1), int(it * len(u_death)))
                         _draw_warrior_unit(
-                            surface, def_meet_x + fx, def_meet_y + fy, death_frames, death_idx, def_flip, def_color, show_ring=False
+                            surface, def_meet_x + fx, def_meet_y + fy, u_death, d_idx, def_flip, def_color, show_ring=False
                         )
-                    if house == "TARGARYEN":
-                        frames = _get_dragon_frames(_dragon_direction(dx, dy), "fly", DRAGON_BATTLE_SIZE)
-                        if frames:
-                            frame = frames[int(elapsed * 8) % len(frames)]
-                            surface.blit(frame, (round(bx - frame.get_width() / 2), round(by - 32 - frame.get_height() / 2)))
-                    else:
-                        for fx, fy, foff in att_slots:
-                            _draw_warrior_unit(
-                                surface, att_meet_x + fx, att_meet_y + fy, idle_frames, int(elapsed * 8) + foff, att_flip, accent
-                            )
+                    for fx, fy, foff, ukind in att_slots:
+                        u_idle = _unit_pack(ukind)[1]
+                        _draw_warrior_unit(
+                            surface, att_meet_x + fx, att_meet_y + fy, u_idle, int(elapsed * 8) + foff, att_flip, accent
+                        )
+                    _draw_house_dragon(
+                        surface,
+                        house,
+                        bx,
+                        by,
+                        dx,
+                        dy,
+                        DRAGON_BATTLE_SIZE,
+                        elapsed,
+                        attacking=False,
+                        altitude=68.0,
+                    )
                 else:
-                    # Attackers collapse (or dragon retreats); defenders stand triumphant
-                    if house == "TARGARYEN":
-                        frames = _get_dragon_frames(_dragon_direction(-dx, -dy), "fly", DRAGON_BATTLE_SIZE)
-                        if frames:
-                            rx = att_meet_x - ux * 26 * it
-                            ry = att_meet_y - uy * 26 * it
-                            frame = frames[int(elapsed * 8) % len(frames)]
-                            surface.blit(frame, (round(rx - frame.get_width() / 2), round(ry - 28 - frame.get_height() / 2)))
-                    else:
-                        for fx, fy, _ in att_slots:
-                            _draw_warrior_unit(
-                                surface, att_meet_x + fx, att_meet_y + fy, death_frames, death_idx, att_flip, accent, show_ring=False
-                            )
-                    for fx, fy, foff in def_slots:
+                    # Attackers collapse & dragon banks away; defenders stand triumphant
+                    for fx, fy, _, ukind in att_slots:
+                        u_death = _unit_pack(ukind)[5]
+                        a_idx = min(max(0, len(u_death) - 1), int(it * len(u_death)))
                         _draw_warrior_unit(
-                            surface, def_meet_x + fx, def_meet_y + fy, idle_frames, int(elapsed * 8) + foff, def_flip, def_color
+                            surface, att_meet_x + fx, att_meet_y + fy, u_death, a_idx, att_flip, accent, show_ring=False
                         )
+                    for fx, fy, foff, ukind in def_slots:
+                        u_idle = _unit_pack(ukind)[1]
+                        _draw_warrior_unit(
+                            surface, def_meet_x + fx, def_meet_y + fy, u_idle, int(elapsed * 8) + foff, def_flip, def_color
+                        )
+                    rx = att_meet_x - ux * 42.0 * it
+                    ry = att_meet_y - uy * 42.0 * it
+                    _draw_house_dragon(
+                        surface,
+                        house,
+                        rx,
+                        ry,
+                        -dx,
+                        -dy,
+                        DRAGON_BATTLE_SIZE,
+                        elapsed,
+                        attacking=False,
+                        altitude=66.0 + 14.0 * it,
+                    )
 
                 # Expanding outcome shockwave ring at the target castle
                 ring_r = round(16 + it * 46)
@@ -2064,14 +2531,26 @@ def draw_hud_toggles(
     fonts: dict[str, pygame.font.Font],
     show_houses: bool = False,
     show_log: bool = False,
+    music_enabled: bool = False,
     mouse: tuple[float, float] | None = None,
 ) -> dict[str, pygame.Rect]:
-    """Render top-right collapsible drawer toggle pills on the full-screen map."""
+    """Render top-right music toggle and collapsible drawer pills on the full-screen map."""
     buttons: dict[str, pygame.Rect] = {}
-    houses_btn = pygame.Rect(MAP_RECT.right - 274, MAP_RECT.y + 14, 126, 40)
-    log_btn = pygame.Rect(MAP_RECT.right - 140, MAP_RECT.y + 14, 126, 40)
+    music_btn = pygame.Rect(MAP_RECT.right - 378, MAP_RECT.y + 14, 112, 40)
+    houses_btn = pygame.Rect(MAP_RECT.right - 258, MAP_RECT.y + 14, 116, 40)
+    log_btn = pygame.Rect(MAP_RECT.right - 134, MAP_RECT.y + 14, 122, 40)
+    buttons["toggle_music"] = music_btn
     buttons["toggle_houses"] = houses_btn
     buttons["toggle_log"] = log_btn
+    _draw_button(
+        surface,
+        music_btn,
+        "MUSIC: ON" if music_enabled else "MUSIC: OFF",
+        fonts["micro"],
+        active=music_enabled,
+        hovered=bool(mouse and music_btn.collidepoint(mouse)),
+        accent=GOLD if music_enabled else (112, 128, 126),
+    )
     _draw_button(
         surface,
         houses_btn,

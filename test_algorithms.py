@@ -200,13 +200,13 @@ def test_mcts_and_sim_consistency() -> None:
 
 
 def test_game_logic_invariants() -> None:
-    # 1) Effective defense formula: neutral uses full multiplier, house uses 1 + 0.15 * bonus
+    # 1) Effective defense formula: neutral uses full multiplier, house uses 1 + 0.05 * bonus
     assert effective_defense(14, 4, is_house=False) == 56.0
-    assert abs(effective_defense(10, 4, is_house=True) - 16.0) < 1e-9
+    assert abs(effective_defense(10, 4, is_house=True) - 12.0) < 1e-9
 
     # 2) Human ally proposal does NOT end turn and blocks duplicate proposals in same turn
     ctrl = _fresh_controller(mode="Human vs AI", human_house="STARK")
-    ctrl.active_index = 0
+    ctrl.active_index = ctrl.houses.index(ctrl.by_name["STARK"])
     ended1 = ctrl.handle_human_action("ally_lannister")
     assert ended1 is False, "Proposing alliance must not end the human's turn"
     assert len(ctrl.by_name["LANNISTER"].inbox) == 1

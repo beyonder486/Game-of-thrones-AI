@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ctypes
+import os
+import random
 import sys
 
 import pygame
@@ -32,6 +34,175 @@ from renderer import (
 )
 
 
+SWORD_FIGHT_SOUND_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "assets",
+    "sounds",
+    "dragon-studio-sword-fight-393849.mp3",
+)
+FIRE_BREATH_SOUND_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "assets",
+    "sounds",
+    "floraphonic-fireball-whoosh-5-179129.mp3",
+)
+BGM_SOUND_PATH = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)),
+    "assets",
+    "sounds",
+    "Lament of the War - MP3 Preview.mp3",
+)
+BGM_NORMAL_VOL: float = 0.42
+BGM_DUCKED_VOL: float = 0.12
+_SWORD_FIGHT_SFX: pygame.mixer.Sound | None = None
+_FIRE_BREATH_SFX: pygame.mixer.Sound | None = None
+_SWORD_FIGHT_CHANNEL: pygame.mixer.Channel | None = None
+_FIRE_BREATH_CHANNEL: pygame.mixer.Channel | None = None
+_BGM_STARTED: bool = False
+_BGM_CURRENT_VOL: float = 0.0
+_SFX_LOADED: bool = False
+_BGM_ENABLED: bool = False  # Background music off by default; battle SFX always active
+
+
+def _start_bgm() -> bool:
+    """Start looping background music when enabled."""
+    global _BGM_STARTED, _BGM_CURRENT_VOL
+    if _BGM_STARTED or not pygame.mixer.get_init() or not os.path.isfile(BGM_SOUND_PATH):
+        return _BGM_STARTED
+    try:
+        pygame.mixer.music.load(BGM_SOUND_PATH)
+        _BGM_CURRENT_VOL = BGM_DUCKED_VOL if _is_battle_sfx_playing() else BGM_NORMAL_VOL
+        pygame.mixer.music.set_volume(_BGM_CURRENT_VOL if _BGM_ENABLED else 0.0)
+        pygame.mixer.music.play(loops=-1, fade_ms=700)
+        _BGM_STARTED = True
+    except pygame.error:
+        _BGM_STARTED = False
+    return _BGM_STARTED
+
+
+def _toggle_bgm() -> bool:
+    """Toggle background music ON/OFF without ever disabling sword or dragon battle SFX."""
+    global _BGM_ENABLED, _BGM_CURRENT_VOL
+    _BGM_ENABLED = not _BGM_ENABLED
+    if not pygame.mixer.get_init():
+        return _BGM_ENABLED
+    if _BGM_ENABLED:
+        if not _BGM_STARTED:
+            _start_bgm()
+        else:
+            try:
+                pygame.mixer.music.unpause()
+            except pygame.error:
+                pass
+    else:
+        _BGM_CURRENT_VOL = 0.0
+        if _BGM_STARTED:
+            try:
+                pygame.mixer.music.set_volume(0.0)
+                pygame.mixer.music.pause()
+            except pygame.error:
+                pass
+    return _BGM_ENABLED
+
+
+def _is_battle_sfx_playing() -> bool:
+    for ch in (_SWORD_FIGHT_CHANNEL, _FIRE_BREATH_CHANNEL):
+        if ch is not None:
+            try:
+                if ch.get_busy():
+                    return True
+            except pygame.error:
+                pass
+    return False
+
+
+def _update_bgm_ducking(dt: float) -> None:
+    """Smoothly dim background music while sword-fight or dragon-breath SFX play."""
+    global _BGM_CURRENT_VOL
+    if not _BGM_STARTED or not _BGM_ENABLED or not pygame.mixer.get_init():
+        return
+    if _is_battle_sfx_playing():
+        target = BGM_DUCKED_VOL
+        rate = 6.5  # fast duck down when battle SFX ignite
+    else:
+        target = BGM_NORMAL_VOL
+        rate = 1.6  # smooth swell back up once clash ends
+    if abs(_BGM_CURRENT_VOL - target) > 0.002:
+        step = min(1.0, max(0.0, dt) * rate)
+        _BGM_CURRENT_VOL += (target - _BGM_CURRENT_VOL) * step
+        try:
+            pygame.mixer.music.set_volume(max(0.0, min(1.0, _BGM_CURRENT_VOL)))
+        except pygame.error:
+            pass
+
+
+def _load_battle_sfx() -> tuple[pygame.mixer.Sound | None, pygame.mixer.Sound | None]:
+    global _SWORD_FIGHT_SFX, _FIRE_BREATH_SFX, _SFX_LOADED
+    if _SFX_LOADED:
+        return _SWORD_FIGHT_SFX, _FIRE_BREATH_SFX
+    _SFX_LOADED = True
+    if not pygame.mixer.get_init():
+        return None, None
+    for path, vol, target in (
+        (SWORD_FIGHT_SOUND_PATH, 0.58, "sword"),
+        (FIRE_BREATH_SOUND_PATH, 0.72, "fire"),
+    ):
+        if not os.path.isfile(path):
+            continue
+        try:
+            sfx = pygame.mixer.Sound(path)
+            sfx.set_volume(vol)
+            if target == "sword":
+                _SWORD_FIGHT_SFX = sfx
+            else:
+                _FIRE_BREATH_SFX = sfx
+        except pygame.error:
+            pass
+    return _SWORD_FIGHT_SFX, _FIRE_BREATH_SFX
+
+
+def _play_battle_sfx(maxtime_ms: int = 1850) -> None:
+    global _SWORD_FIGHT_CHANNEL
+    if not pygame.mixer.get_init():
+        return
+    sword_sfx, _ = _load_battle_sfx()
+    if sword_sfx is None:
+        return
+    try:
+        if _SWORD_FIGHT_CHANNEL is not None:
+            _SWORD_FIGHT_CHANNEL.stop()
+        _SWORD_FIGHT_CHANNEL = sword_sfx.play(maxtime=maxtime_ms, fade_ms=80)
+    except pygame.error:
+        pass
+
+
+def _play_fire_breath_sfx(maxtime_ms: int = 1750) -> None:
+    global _FIRE_BREATH_CHANNEL
+    if not pygame.mixer.get_init():
+        return
+    _, fire_sfx = _load_battle_sfx()
+    if fire_sfx is None:
+        return
+    try:
+        if _FIRE_BREATH_CHANNEL is not None:
+            _FIRE_BREATH_CHANNEL.stop()
+        _FIRE_BREATH_CHANNEL = fire_sfx.play(maxtime=maxtime_ms, fade_ms=40)
+    except pygame.error:
+        pass
+
+
+def _fadeout_battle_sfx(ms: int = 240) -> None:
+    global _SWORD_FIGHT_CHANNEL, _FIRE_BREATH_CHANNEL
+    for ch in (_SWORD_FIGHT_CHANNEL, _FIRE_BREATH_CHANNEL):
+        if ch is not None:
+            try:
+                ch.fadeout(ms)
+            except pygame.error:
+                pass
+    _SWORD_FIGHT_CHANNEL = None
+    _FIRE_BREATH_CHANNEL = None
+
+
 def _scale_military(strength: float) -> float:
     return max(0.0, min(100.0, strength * 2.5))
 
@@ -52,6 +223,7 @@ class GameController:
 
         self.map = Map()
         self.houses = create_initial_houses(self.map)
+        random.shuffle(self.houses)
         self.by_name: dict[str, House] = {h.name: h for h in self.houses}
         for h in self.houses:
             h.is_human = self.mode == "Human vs AI" and h.name == self.human_house_name
@@ -90,10 +262,16 @@ class GameController:
         return scores
 
     def _update_context_b_fuzzy(self, house: House, proposer: House) -> dict[str, float]:
-        sender_strength = _scale_military(proposer.get_military_strength())
+        # Evaluate alliance against the 3rd (common enemy) house's threat when alive
+        third = next(
+            (h for h in self.houses if h.name not in (house.name, proposer.name) and not h.is_eliminated()),
+            None,
+        )
+        threat_source = third if third is not None else proposer
+        common_threat = _scale_military(threat_source.get_military_strength())
         own_weakness = max(0.0, min(100.0, 100.0 - _scale_military(house.get_military_strength())))
         trust = self.diplomacy.get_trust(house, proposer)
-        scores = evaluate_diplomacy(sender_strength, own_weakness, trust)
+        scores = evaluate_diplomacy(common_threat, own_weakness, trust)
         house.fuzzy_scores = scores
         return scores
 
@@ -332,6 +510,18 @@ class GameController:
         """Advance active animations and proceed to the next move only when battles finish."""
         for anim in self.animations:
             anim["elapsed"] = float(anim.get("elapsed", 0.0)) + dt
+            if anim.get("type") == "march":
+                dur = max(0.05, float(anim.get("duration", 3.2)))
+                prog = float(anim["elapsed"]) / dur
+                if prog >= 0.30 and not anim.get("sfx_started"):
+                    anim["sfx_started"] = True
+                    _play_battle_sfx(maxtime_ms=1900)
+                if prog >= 0.34 and not anim.get("fire_sfx_started"):
+                    anim["fire_sfx_started"] = True
+                    _play_fire_breath_sfx(maxtime_ms=1750)
+                elif prog >= 0.80 and not anim.get("sfx_faded"):
+                    anim["sfx_faded"] = True
+                    _fadeout_battle_sfx(240)
         self.animations = [
             a for a in self.animations if float(a.get("elapsed", 0.0)) < float(a.get("duration", 1.0))
         ]
@@ -463,6 +653,12 @@ def _enable_windows_dpi_awareness() -> None:
 def main() -> None:
     _enable_windows_dpi_awareness()
     pygame.init()
+    try:
+        if not pygame.mixer.get_init():
+            pygame.mixer.init()
+        _load_battle_sfx()
+    except pygame.error:
+        pass
     pygame.display.set_caption("Game of Thrones: AI Conquest — Realm Overview")
     display = pygame.display.Info()
     desktop_width = display.current_w or WIDTH
@@ -533,6 +729,8 @@ def main() -> None:
                 show_houses = not show_houses
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_l and not in_menu:
                 show_log = not show_log
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_m:
+                _toggle_bgm()
             elif (
                 event.type == pygame.KEYDOWN
                 and event.key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_RIGHT)
@@ -544,6 +742,9 @@ def main() -> None:
                     controller.start_animated_turn()
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 and mouse is not None:
                 if not in_menu and not (controller.winner is not None and show_win_modal):
+                    if "toggle_music" in hud_buttons and hud_buttons["toggle_music"].collidepoint(mouse):
+                        _toggle_bgm()
+                        continue
                     if "toggle_houses" in hud_buttons and hud_buttons["toggle_houses"].collidepoint(mouse):
                         show_houses = not show_houses
                         continue
@@ -644,7 +845,14 @@ def main() -> None:
         hud_buttons = {}
         game_over_buttons = {}
         if not in_menu and not (controller.winner is not None and show_win_modal and not controller.has_blocking_animation()):
-            hud_buttons = draw_hud_toggles(canvas, fonts, show_houses=show_houses, show_log=show_log, mouse=mouse)
+            hud_buttons = draw_hud_toggles(
+                canvas,
+                fonts,
+                show_houses=show_houses,
+                show_log=show_log,
+                music_enabled=_BGM_ENABLED,
+                mouse=mouse,
+            )
         if not in_menu and (controller.winner is None or controller.has_blocking_animation()):
             if controller.is_turn_busy():
                 draw_ai_prompt(
@@ -678,6 +886,7 @@ def main() -> None:
         pygame.display.flip()
         dt = clock.tick(FPS) / 1000.0
         controller.update_animations(dt)
+        _update_bgm_ducking(dt)
 
     pygame.quit()
 

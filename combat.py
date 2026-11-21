@@ -12,11 +12,12 @@ def effective_defense(defender_armies: float, defense_bonus: int, is_house: bool
     """Compute effective defensive strength.
 
     Neutral garrisons (small 2–14 forces) scale directly by defense_bonus,
-    while full Great House army pools receive a realistic fortification multiplier
-    (1.0 + 0.15 * defense_bonus) so rival kingdoms can wage viable wars.
+    while full Great House army pools receive a light fortification multiplier
+    (1.0 + 0.05 * defense_bonus) so neighboring kingdoms actively clash instead
+    of stalling in a standoff.
     """
     if is_house:
-        return defender_armies * (1.0 + 0.15 * defense_bonus)
+        return defender_armies * (1.0 + 0.05 * defense_bonus)
     return defender_armies * defense_bonus
 
 

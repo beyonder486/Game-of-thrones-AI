@@ -172,12 +172,11 @@ def _rollout(
         if alliance_pending and step == 1:
             allied = True
         if allied:
-            # Alliance breakdown: p_break = 1 - trust/100 → solo play for the remainder.
-            if random.random() < 1.0 - trust / 100.0:
+            # Per-turn alliance breakdown scaled so a 50-trust pact lasts several turns
+            # rather than collapsing immediately on step 0.
+            if step > 0 and random.random() < (1.0 - trust / 100.0) * 0.25:
                 allied = False
                 risk += 10.0
-            else:
-                risk += (1.0 - trust / 100.0) * 5.0
 
         for name in sim.order:
             if not sim.alive(name) or sim.armies[name] <= 0:

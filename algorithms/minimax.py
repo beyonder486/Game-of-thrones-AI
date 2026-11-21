@@ -13,6 +13,8 @@ KNOWN APPROXIMATIONS
 
 from __future__ import annotations
 
+import random
+
 from algorithms.astar import get_path
 from combat import effective_defense
 from constants import MIN_ATTACK_ARMIES, MINIMAX_DEPTH, THRONE_BONUS
@@ -278,6 +280,12 @@ def paranoid_minimax(
 def _pick(scores: dict[str | None, float], game_map: Map) -> Territory | None:
     if not scores:
         return None
+    best_val = max(scores.values())
+    # Allow slight opening variety among near-tied top moves (within 2.0 pts of optimal)
+    top_attacks = [k for k, v in scores.items() if k is not None and v >= best_val - 2.0]
+    if top_attacks:
+        chosen = random.choice(top_attacks)
+        return game_map.by_name[chosen]
     best = max(scores, key=lambda k: (scores[k], k is not None))
     return game_map.by_name[best] if best is not None else None
 
