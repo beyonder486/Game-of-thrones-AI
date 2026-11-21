@@ -74,18 +74,27 @@ A house wins when **either** victory condition is met (checked after every comba
 At the end of every round (`main.py:_end_of_round`), each surviving house executes income collection and automatic recruitment:
 
 ### 1. Turn Income
-$$\text{Income}(h) = B + \sum_{t \in T(h)} r(t)$$
-where $B = \text{BASE\_INCOME} = 10$ gold and $r(t)$ is each owned territory's `resource_value`.
+
+$$
+\text{Income}(h) = B + \sum_{t \in T(h)} r(t)
+$$
+
+where $B = 10$ (`BASE_INCOME`) and $r(t)$ is each owned territory's `resource_value`.
 
 ### 2. Army Supply Cap & Recruitment
-$$\text{SupplyCap}(h) = 12 + 6 \cdot |T(h)|$$
 
-$$\text{Recruits}(h) = \min\!\left(R_{\max},\; \max\!\left(0,\; \left\lfloor \frac{\text{Gold}(h) - G_{\text{res}}}{C_{\text{army}}} \right\rfloor\right),\; \max\!\left(0,\; \text{SupplyCap}(h) - A(h)\right)\right)$$
+$$
+\text{SupplyCap}(h) = 12 + 6 \cdot |T(h)|
+$$
+
+$$
+\text{Recruits}(h) = \min\left(R_{\max}, \ \max\left(0, \ \left\lfloor \frac{\text{Gold}(h) - G_{\text{res}}}{C_{\text{army}}} \right\rfloor\right), \ \max\left(0, \ \text{SupplyCap}(h) - A(h)\right)\right)
+$$
 
 with constants (`constants.py`):
-- $R_{\max} = \text{MAX\_RECRUITS\_PER\_TURN} = 3$ armies/round
+- $R_{\max} = 3$ armies/round (`MAX_RECRUITS_PER_TURN`)
 - $G_{\text{res}} = 15$ Gold treasury reserve
-- $C_{\text{army}} = \text{ARMY\_COST} = 5$ Gold per army
+- $C_{\text{army}} = 5$ Gold per army (`ARMY_COST`)
 
 **Mathematical Rationale (Preventing the Infinite-Hold Exploit):**
 - Without `SupplyCap`, a player could repeatedly click `HOLD TURN` on a single hold forever, accumulating unlimited armies to one-shot King's Landing without ever fighting.
@@ -99,7 +108,13 @@ with constants (`constants.py`):
 All battles are resolved in [`combat.py`](combat.py).
 
 ### 1. Effective Defense Formula
-$$\text{EffectiveDefense}(d, b) = \begin{cases} d \cdot b & \text{if territory is Neutral (small garrison } d \in [2,10]\text{)} \\ d \cdot (1 + 0.05 \cdot b) & \text{if territory is owned by a rival Great House} \end{cases}$$
+
+$$
+\text{EffectiveDefense}(d, b) = \begin{cases}
+d \cdot b & \text{if territory is Neutral (garrison } d \in [2, 10]\text{)} \\
+d \cdot (1 + 0.05 \cdot b) & \text{if territory is owned by a rival Great House}
+\end{cases}
+$$
 
 **Mathematical Rationale (Preventing Rival Standoffs):**
 - Neutral garrisons are small static forces (`2–10` armies), so multiplying by full `defense_bonus` (`1×–4×`) creates realistic fortress thresholds (e.g., King's Landing $= 10 \times 3 = 30$).
@@ -107,7 +122,11 @@ $$\text{EffectiveDefense}(d, b) = \begin{cases} d \cdot b & \text{if territory i
 - Scaling rival Great House fortifications to $(1 + 0.05b)$ (`+5%` to `+20%`) preserves the defensive edge of fortified holds while ensuring any house with a `10–15%` troop lead actively invades its neighbor.
 
 ### 2. Stochastic Combat Resolution
-$$P_{\text{att}} = A_{\text{att}} \cdot U_{\text{att}}, \qquad P_{\text{def}} = \text{EffectiveDefense}(A_{\text{def}}, b) \cdot U_{\text{def}}$$
+
+$$
+P_{\text{att}} = A_{\text{att}} \cdot U_{\text{att}}, \qquad P_{\text{def}} = \text{EffectiveDefense}(A_{\text{def}}, b) \cdot U_{\text{def}}
+$$
+
 where $U_{\text{att}}, U_{\text{def}} \stackrel{\text{i.i.d.}}{\sim} \text{Uniform}(0.80, 1.20)$.
 
 | Outcome | Condition | Attacker Losses | Defender Losses | Territory & Treasury |
@@ -118,11 +137,21 @@ where $U_{\text{att}}, U_{\text{def}} \stackrel{\text{i.i.d.}}{\sim} \text{Unifo
 Both sides' surviving armies are clamped to $\max(1, A - \text{losses})$.
 
 ### 3. Win-Probability Thresholds
+
 - **Expected-Value Threshold (>50% win odds, used by deterministic Minimax):**
-  $$A_{\text{att}} > \text{EffectiveDefense}(A_{\text{def}}, b)$$
+
+$$
+A_{\text{att}} > \text{EffectiveDefense}(A_{\text{def}}, b)
+$$
+
   Because $\mathbb{E}[U] = 1.0$ and the distribution is symmetric, beating `EffectiveDefense` means strictly better than 50/50 odds.
+
 - **100% Guaranteed Victory Threshold (worst-case RNG):**
-  $$0.80 \cdot A_{\text{att}} > 1.20 \cdot \text{EffectiveDefense} \iff A_{\text{att}} > 1.50 \cdot \text{EffectiveDefense}$$
+
+$$
+0.80 \cdot A_{\text{att}} > 1.20 \cdot \text{EffectiveDefense} \iff A_{\text{att}} > 1.50 \cdot \text{EffectiveDefense}
+$$
+
   *(Example: Neutral King's Landing has effective defense `30`, so `31+` armies give >50% odds and `46+` armies guarantee capture regardless of dice rolls.)*
 
 ---
@@ -166,13 +195,21 @@ When any house reaches `0` holds, `diplomacy.purge_eliminated(defender)` immedia
 ### 3. Greedy Heuristic Search — [`algorithms/greedy.py`](algorithms/greedy.py)
 - `greedy_pick(candidates)` and `get_greedy_move(house, game_map, enemies)`
 - Selection rule:
-  $$t^* = \arg\max_{t \in \text{Candidates}} \bigl(r(t) - b(t),\; \mathbb{I}[t = \text{King's Landing}]\bigr)$$
+
+$$
+t^{\ast} = \arg\max_{t \in \text{Candidates}} \bigl(r(t) - b(t), \ \mathbb{I}[t = \text{King's Landing}]\bigr)
+$$
+
 - **Dual Role:** Standalone tactical baseline AND the deterministic rollout policy inside MCTS (`algorithms/mcts.py` imports `greedy_pick` directly so rollouts never play randomly).
 
 ### 4. A\* Pathfinding — [`algorithms/astar.py`](algorithms/astar.py)
 - `get_path(game_map, start, goal) -> list[Territory]`
 - Minimizes total fortification risk along multi-hop routes:
-  $$f(n) = g(n) + h(n), \qquad g(n) = \sum_{t \in \text{path}(s \to n) \setminus \{s\}} b(t), \qquad h(n) = d_{\text{hex}}(n, \text{goal})$$
+
+$$
+f(n) = g(n) + h(n), \qquad g(n) = \sum_{t \in \text{path}(s \to n) \setminus \{s\}} b(t), \qquad h(n) = d_{\text{hex}}(n, \text{goal})
+$$
+
   where $d_{\text{hex}}$ is cube-coordinate hex distance (`map.py:hex_distance`).
 - **Dual Role:**
   1. **AI Minimax Guidance:** `_throne_path_costs()` caches the A\* defense cost from every territory to `KING'S LANDING`, rewarding AI moves that advance along the lowest-defense A\* corridor.
@@ -181,7 +218,11 @@ When any house reaches `0` holds, `diplomacy.purge_eliminated(defender)` immedia
 ### 5. Mamdani Fuzzy Logic — [`algorithms/fuzzy_diplomacy.py`](algorithms/fuzzy_diplomacy.py)
 - `evaluate_diplomacy(enemy_strength, own_weakness, trust_history) -> dict[str, float]`
 - **Triangular Membership Functions (`trimf`) over $[0, 100]$:**
-  $$\text{LOW} = (0, 0, 60), \qquad \text{MEDIUM} = (20, 50, 80), \qquad \text{HIGH} = (40, 100, 100)$$
+
+$$
+\text{LOW} = (0, 0, 60), \qquad \text{MEDIUM} = (20, 50, 80), \qquad \text{HIGH} = (40, 100, 100)
+$$
+
 - **6 Mamdani Inference Rules** (min-implication, max-aggregation, centroid defuzzification; `scikit-fuzzy` with pure-NumPy fallback):
   1. $\text{Enemy HIGH} \land \text{Weakness HIGH} \Rightarrow \text{Alliance HIGH}$
   2. $\text{Trust LOW} \land \text{Enemy MEDIUM} \Rightarrow \text{Alliance LOW}$
@@ -189,7 +230,12 @@ When any house reaches `0` holds, `diplomacy.purge_eliminated(defender)` immedia
   4. $\text{Weakness LOW} \land \text{Trust HIGH} \Rightarrow \text{Solo HIGH}$
   5. $\text{Enemy HIGH} \land \text{Trust HIGH} \Rightarrow \text{Alliance MEDIUM}$
   6. $\text{Trust LOW} \Rightarrow \text{Betrayal MEDIUM}$
-- **Military Scaling:** $S_{\text{scaled}}(h) = \text{clip}\!\bigl(2.5 \cdot (A(h) + \sum_{t \in T(h)} b(t)),\; 0,\; 100\bigr)$ and $\text{Weakness}(h) = 100 - S_{\text{scaled}}(h)$.
+- **Military Scaling:**
+
+$$
+S_{\text{scaled}}(h) = \text{clip}\left(2.5 \cdot \left(A(h) + \sum_{t \in T(h)} b(t)\right), \ 0, \ 100\right), \qquad \text{Weakness}(h) = 100 - S_{\text{scaled}}(h)
+$$
+
 - **Two Contexts:**
   - **Context A (Own Diplomacy):** `enemy_strength` = combined surviving rivals; `trust` = mean trust toward rivals.
   - **Context B (Incoming Proposal):** `enemy_strength` = **3rd (common enemy) house's strength** when alive (so two weaker houses accurately perceive the dominant 3rd house's threat and form coalitions); `trust` = trust toward the proposer.
@@ -199,13 +245,21 @@ When any house reaches `0` holds, `diplomacy.purge_eliminated(defender)` immedia
 - `get_move_scores(...) -> dict[str | None, float]` and `get_best_move(...) -> Territory | None`
 - Depth limit: `MINIMAX_DEPTH = 3`, with Alpha-Beta pruning and expected-value combat (`U = 1.0`).
 - **Board Evaluation Function (`_evaluate_state`):**
-  $$V(s, h) = 2\!\sum_{t \in T(h)}\!\bigl(r(t) + b(t)\bigr) + 1.5\,A(h) + 0.5\,G(h) + 500\,\mathbb{I}[\text{KL} \in T(h)] + 1.5\max\!\bigl(0,\, 12 - C^*_{\text{A*}}(h)\bigr) - \sum_{e \in E}\!\left(\sum_{t \in T(e)} r(t) + 1.5\,A(e)\right)$$
-  where $C^*_{\text{A*}}(h) = \min_{t \in T(h)} \text{cost}_{\text{A*}}(t \to \text{King's Landing})$.
+
+$$
+V(s, h) = 2 \sum_{t \in T(h)} \bigl(r(t) + b(t)\bigr) + 1.5 A(h) + 0.5 G(h) + 500 \mathbb{I}[\text{KL} \in T(h)] + 1.5 \max\bigl(0, \ 12 - C_{\text{throne}}(h)\bigr) - \sum_{e \in E} \left(\sum_{t \in T(e)} r(t) + 1.5 A(e)\right)
+$$
+
+  where $C_{\text{throne}}(h) = \min_{t \in T(h)} \text{cost}_{\text{Astar}}(t \to \text{King's Landing})$.
 - **Two Modes:**
   - **Decomposed Mode** (no active alliance): weighted sum of independent 1v1 Minimax searches:
-    $$V_{\text{decomp}}(m) = \sum_{e \in E} \frac{S(e)}{\sum_{e' \in E} S(e')} \cdot \text{Minimax}_{1\text{v}1}(h \text{ vs. } e;\, m)$$
+
+$$
+V_{\text{decomp}}(m) = \sum_{e \in E} \frac{S(e)}{\sum_{e' \in E} S(e')} \cdot \text{Minimax}_{1\text{v}1}(h \text{ vs. } e; \ m)
+$$
+
   - **Paranoid Mode** (any active alliance): merges opposing houses into a single minimizing coalition that never attacks itself.
-- **Candidate Pruning (`_moves`):** Excludes owned holds, active ally holds (`my_forbidden`), rival House holds when $A(h) < \text{MIN\_ATTACK\_ARMIES} = 5$, and `KING'S LANDING` when $A(h) < \text{EffectiveDefense}(\text{KL})$.
+- **Candidate Pruning (`_moves`):** Excludes owned holds, active ally holds (`my_forbidden`), rival House holds when $A(h) < 5$ (`MIN_ATTACK_ARMIES`), and `KING'S LANDING` when $A(h) < \text{EffectiveDefense}(\text{KL})$.
 - **Opening Variety (`_pick`):** Randomly breaks ties among top attacks within `2.0` points of optimal so AI matches explore diverse borders.
 - **Human Hover Preview:** `get_move_scores()` computes scores for every valid adjacent hold plus `None` (`Hold`) and displays `Minimax: +XX.X · BEST` vs. `Hold` directly inside the map hover tooltip.
 
@@ -214,16 +268,31 @@ When any house reaches `0` holds, `diplomacy.purge_eliminated(defender)` immedia
 - Context B: `get_proposal_response(...) -> "accept" | "reject"`
 - Hyperparameters: `MCTS_ITER = 500`, `MCTS_ROLLOUT_DEPTH = 10`, `UCT_C = 1.414`, `REWARD_SCALE = 100.0`.
 - **Fuzzy-Biased UCT Formula:**
-  $$\text{UCT}(a) = \frac{Q(a)}{N(a)} + c\sqrt{\frac{\ln N_{\text{parent}}}{N(a)}} + \text{FuzzyBias}(a), \qquad c = 1.414$$
+
+$$
+\text{UCT}(a) = \frac{Q(a)}{N(a)} + c\sqrt{\frac{\ln N_{\text{parent}}}{N(a)}} + \text{FuzzyBias}(a), \qquad c = 1.414
+$$
+
   - Context A biases: `propose_alliance` $\leftarrow$ `alliance`, `betray` $\leftarrow$ `betrayal`, `solo` $\leftarrow$ `solo`. Partner choice maximizes `(trust, -military_strength)`, preferring the weaker rival on equal trust so two weaker houses unite against the leader.
   - Context B biases: `accept` $\leftarrow$ `alliance`, `reject` $\leftarrow \max(\text{betrayal}, \text{solo})$.
 - **Stochastic Rollouts (`_Sim` + `_rollout`):**
   - All houses act with `greedy_pick()` under full live combat RNG (`Uniform(0.80, 1.20)`), `effective_defense`, `>= 1` army floor, King's Landing threshold guard, and exact supply-capped economy.
   - **Per-Turn Alliance Breakdown:** For each rollout step $k > 0$, an active pact breaks with probability
-    $$p_{\text{break}} = 0.25 \cdot \left(1 - \frac{\text{trust}}{100}\right)$$
+
+$$
+p_{\text{break}} = 0.25 \cdot \left(1 - \frac{\text{trust}}{100}\right)
+$$
+
     adding $+10.0$ risk penalty if it collapses (betraying first incurs $+30.0$ risk).
 - **Prioritized Rollout Reward:**
-  $$R = \begin{cases} \frac{1000}{100} = 10.0 & \text{if Iron Throne captured by self} \\ 0.0 & \text{if self eliminated} \\ \frac{\max(0,\; 0.5\,T_{\text{val}} + 0.3\,S_{\text{mil}} + 0.2\,G_{\text{val}} - 0.4\,\text{Risk})}{100} & \text{otherwise (halved if a rival takes the Throne)} \end{cases}$$
+
+$$
+R = \begin{cases}
+\dfrac{1000}{100} = 10.0 & \text{if Iron Throne captured by self} \\
+0.0 & \text{if self eliminated} \\
+\dfrac{\max(0, \ 0.5 T_{\text{val}} + 0.3 S_{\text{mil}} + 0.2 G_{\text{val}} - 0.4 \text{Risk})}{100} & \text{otherwise (halved if rival takes Throne)}
+\end{cases}
+$$
 
 ---
 
